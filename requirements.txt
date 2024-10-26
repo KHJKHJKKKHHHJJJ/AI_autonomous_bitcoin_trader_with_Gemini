@@ -1,0 +1,6 @@
+google-generativeai
+pandas
+httplib2
+bs4
+inputimeout
+pandas_ta
