@@ -313,7 +313,7 @@ def write_chat(data):
 # Sending messages by telegram
 async def tel(text):
     bot = telegram.Bot(KEYS.tel)
-    await bot.send_message(chat_id="-4586399763", text=text) # delete it before publish
+    await bot.send_message(chat_id="YOUR CHAT ID", text=text) # delete it before publish
 
 def send_tel(text):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
