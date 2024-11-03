@@ -1,4 +1,5 @@
 google-generativeai
+numpy==1.26.3
 pandas
 httplib2
 bs4
