@@ -1,5 +1,9 @@
 import google.generativeai as genai
-import KEYS
+# import KEYS
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import json
 import sqlite3 as sql
 import datetime
@@ -9,7 +13,7 @@ import pandas as pd
 
 
 def gen_pru_model(instruction):
-    genai.configure(api_key = KEYS.Gemini)
+    genai.configure(api_key = os.getenv("Gemini"))
 
     # Create the model
     generation_config = {
@@ -21,7 +25,7 @@ def gen_pru_model(instruction):
     }
 
     model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro-exp-0827",
+    model_name="gemini-1.5-pro-002",
     generation_config=generation_config,
     system_instruction=instruction,
     )
@@ -128,6 +132,8 @@ def write_fear_greed():
     '''Records Fear_Greed Index of its date.
     It's void function'''
     headers = {
+        "ACCEPT" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "USER-AGENT" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     }
 
     url = "https://www.blockstreet.co.kr/fear-greed"
@@ -174,8 +180,6 @@ def get_trans_record():
     return json.dumps(transaction.to_dict('list'))
 
 
-
-
 if __name__ == '__main__':
     pru_instruction = './Prudence Gemini Instruction.md'
     pru_chat_session = gen_pru_model(get_instructions(pru_instruction))
@@ -184,9 +188,18 @@ if __name__ == '__main__':
     try:
         with sql.connect("./Record.db") as dbop:
             dbcs = dbop.cursor()
-            checker = [j for i in list(dbcs.execute('SELECT DATE FROM PRUDENCERECORD;')) for j in i]
+            dateRecord = dbcs.execute('SELECT DATE FROM PRUDENCERECORD;')
+            checker = [j for i in list(dateRecord) for j in i]
+            print(len(checker))
+            
+            # initialize prudence record
+            if len(checker) == 11:
+                print("Prudence Record Initialize")
+                for date in checker[:7]:
+                    dbcs.execute(f"DELETE FROM PRUDENCERECORD WHERE DATE = '{date}';")
+                    print(f"{date} data deleted")
+
             if str(datetime.datetime.now())[:10] not in checker:
-                b['reason'] += "\n\nPs. You didn't regarded the minimum amount of selling BTC. Calculate before Selling it"
                 dbcs.execute("INSERT INTO PRUDENCERECORD VALUES(?,?,?);", [b[i] for i in list(b.keys())])
             dbop.commit()
     except Exception as e:

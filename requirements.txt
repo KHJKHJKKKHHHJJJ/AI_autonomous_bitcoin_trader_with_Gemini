@@ -4,5 +4,5 @@ httplib2
 bs4
 inputimeout
 pandas_ta
-telegram
-asyncio
+python-dotenv
+streamlit

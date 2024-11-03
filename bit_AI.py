@@ -11,7 +11,11 @@ from pandas_ta import ema
 from pandas_ta import stochrsi
 from pandas_ta.candles import ha as hei
 
-import KEYS
+# import KEYS
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
 import sqlite3 as sql
 from bs4 import BeautifulSoup
 import requests as rqs
@@ -23,7 +27,7 @@ import asyncio
 
 # related to Gemini
 def gen_bit_model(instruction):
-    genai.configure(api_key = KEYS.Gemini)
+    genai.configure(api_key = os.getenv("Gemini"))
 
     # Create the model
     generation_config = {
@@ -43,7 +47,7 @@ def gen_bit_model(instruction):
     return model.start_chat()
 
 def get_btc():
-    url = "https://api.coinone.co.kr/public/v2/chart/KRW/BTC?interval=30m&size=500"
+    url = "https://api.coinone.co.kr/public/v2/chart/KRW/BTC?interval=30m&size=300"
     header = {"accept": "application/json"}
     bit_response = rqs.get(url, headers=header)
     return bit_response
@@ -66,7 +70,7 @@ def get_tech_indi():
 
 def gem_sug(chat_session, prudence):
     response = chat_session.send_message(f'{get_tech_indi()} {prudence} {get_cur_status()}')
-    model_info = genai.get_model("models/gemini-1.5-flash")
+    model_info = genai.get_model("models/gemini-1.5-pro-002")
     # print(f"{model_info.output_token_limit=}")
     print(model_info.output_token_limit,"\n",response.usage_metadata)
     return json.loads(response.text, strict = False)
@@ -96,7 +100,7 @@ def get_encoded_payload(payload):
     return encoded_json
 
 def get_signature(encoded_payload):
-    signature = hmac.new(KEYS.Secret, encoded_payload, hashlib.sha512)
+    signature = hmac.new(bytes(os.getenv("Secret"), 'utf-8'), encoded_payload, hashlib.sha512)
     return signature.hexdigest()
 
 def get_response(action, payload):
@@ -116,15 +120,20 @@ def get_response(action, payload):
 def wallet(currs): 
     """returns balances, available, limit, average_price of given currencies
     type = list of dicts"""
+    currs = currs.split(' ')
+    print(currs)
     from_wallet = json.loads(get_response(action='/v2.1/account/balance', 
-                               payload={'access_token': KEYS.Access,
+                               payload={'access_token': os.getenv("Access"),
                                         'currencies': currs}), strict = False)
-    return from_wallet['balances']
+    if from_wallet['result'] != "success":
+        print("Something went wrong", from_wallet['error_msg'])
+    else:
+        return from_wallet['balances']
 
 def market_buy(amount):
     """Buy an amount of BTC"""
     return get_response(action="/v2.1/order", payload={'type' : 'MARKET',
-                                                       'access_token' : KEYS.Access,
+                                                       'access_token' : os.getenv("Access"),
                                                        'quote_currency' : "KRW",
                                                        'target_currency' : "BTC",
                                                        'side' : 'BUY',
@@ -138,7 +147,7 @@ def stop_sell(curr, lp_max, amount):
     qty: A ratio amount to sell (ex. 50(%))"""
     perc = wallet(curr)[0]['average_price'] / 100 * lp_max
     return get_response(action="/v2.1/order",payload={'type' : 'STOP_LIMIT',
-                                                       'access_token' : KEYS.Access,
+                                                       'access_token' : os.getenv("Access"),
                                                        'quote_currency' : "KRW",
                                                        'target_currency' : "BTC",
                                                        'side' : 'SELL', 
@@ -166,7 +175,7 @@ def market_sell(curr, amount):
              Price:\t{get_btc_index()}
              AVG:\t{avg_btc}""")
     
-    return get_response(action="/v2.1/order",payload={'access_token' : KEYS.Access,
+    return get_response(action="/v2.1/order",payload={'access_token' : os.getenv("Access"),
                                                        'quote_currency' : "KRW",
                                                        'target_currency' : "BTC",
                                                        'type' : 'MARKET', 
@@ -180,65 +189,6 @@ def get_btc_index():
     return float(json.loads(response.text, strict = False)['tickers'][0]['last'])
 
 # related to DB
-def write_fear_greed():
-    '''Records Fear_Greed Index of its date.
-    It's void function'''
-
-    url = "https://www.blockstreet.co.kr/fear-greed"
-    response = rqs.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    fear_greed = int(soup.find('span', 'greed-background-2').text)
-    date = str(datetime.datetime.today())[:10]
-    
-    with sql.connect('Record.db') as dbop:
-        dbcs = dbop.cursor()
-        dbcs.execute('INSERT INTO FGRECORD VALUES (?, ?);', (date, fear_greed))
-        dbop.commit()
-
-def bring_fear_greed():
-    """brings Fear Greed Index from Record DB as JSON format."""
-    print('getting FGIndex:', end='\t')
-    with sql.connect('./Record.db') as dbop:
-        dbcs = dbop.cursor()
-        fgi = pd.DataFrame(dbcs.execute('SELECT * FROM FGRECORD;'))
-    write_fear_greed()
-    print("completed")
-    return json.dumps({'date': list(fgi[0]),
-                       'FGI' : list(fgi[1])})
-
-def get_news():
-    '''Brings the news articles about bitcoin or crypto from investing.com 
-    returns json data type'''
-
-    url = ('https://newsapi.org/v2/everything?'
-        'q=(crypto OR bitcoin)&'
-        f'from={str(datetime.datetime.now() - datetime.timedelta(days=4))}&'
-        'sortBy=publishedAt&'
-        f'apiKey={KEYS.news}&'
-       'domains=investing.com&'
-        'language=en')
-    response = rqs.get(url)
-    
-    articles = response.json()
-    date = []
-    par = []
-
-    for i in range(len(articles['articles'][:10])):
-        par.append("")
-        new_url = articles['articles'][i]['url']
-        date.append(articles['articles'][i]['publishedAt'][:10])
-        response = rqs.get(new_url)
-        print(f"{i + 1}th(st, nd, rd) article extracting: ", end = '')
-        if response.status_code != 200:
-            print('error occured')
-        else:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for j in soup.find_all(('h1', 'p')):
-                par[i] += j.text
-            print("completed")
-    return json.dumps({'date' : date,
-                       'paragraph': par})
-
 def get_today_prudence():
     print("getting prudence record:", end='\t')
     dbop = sql.connect("./Record.db")
@@ -258,28 +208,6 @@ def get_today_prudence():
     print("completed.")
     return json.dumps(prudict)
 
-def get_chat_record():
-    print("getting chat record:", end='\t')
-    dbop = sql.connect('Record.db')
-    dbcs = dbop.cursor()
-    try:
-        chat = pd.DataFrame(dbcs.execute(
-            f"SELECT * FROM CHATRECORD WHERE DATE LIKE '{str(datetime.datetime.now() - datetime.timedelta(1))[:10]}%';"
-            ))
-    except Exception:
-        print("No chatting recorded")
-        return '{}'
-    chat_dict = {
-        "date"              :list(chat[0]),
-        'buy_or_sell'       :list(chat[1]),
-        'ratio'             :list(chat[2]),
-        'estimated'         :list(chat[3]),
-        'price'             :list(chat[4]),
-        'reason'            :list(chat[5])
-    }
-    print("completed.")
-    return json.dumps(chat_dict)
-
 def write_chat(data):
     """Please give in JSON format"""
     chat = json.loads(data, strict = False)
@@ -290,8 +218,11 @@ def write_chat(data):
     elif chat['decision'] == 'sell':
         decision = 1
         curr = 'BTC'
-    else:
+    elif chat['decision'] == 'hold' or chat['decision'] == 'wait':
         decision = 2
+        curr = 'BTC'
+    else:
+        decision = 3
         curr = 'BTC'
     
     with sql.connect('./Record.DB') as dbop:
@@ -307,13 +238,12 @@ def write_chat(data):
                                                                             chat['ET'],
                                                                             get_btc_index(), chat['reason']))
         dbop.commit()
-
 # trans_record: time, profit = avgbtc/currbtc * 100 (sell 실행시 입력)
 
 # Sending messages by telegram
 async def tel(text):
-    bot = telegram.Bot(KEYS.tel)
-    await bot.send_message(chat_id="YOUR CHAT ID", text=text) # delete it before publish
+    bot = telegram.Bot(os.getenv("tel"))
+    await bot.send_message(chat_id="-4586399763", text=text) # delete it before publish
 
 def send_tel(text):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -321,5 +251,4 @@ def send_tel(text):
 
 if __name__ == '__main__':
     # print(f'{get_tech_indi()} {get_today_prudence()} {get_cur_status()}')
-    print(market_sell('BTC', ''))
-
+    print(wallet("BTC"))
