@@ -6,3 +6,4 @@ inputimeout
 pandas_ta
 python-dotenv
 streamlit
+telegram
