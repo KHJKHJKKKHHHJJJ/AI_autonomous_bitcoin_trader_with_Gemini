@@ -73,14 +73,14 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
     else:
         print("Trading AI will be processed...")
         try:
-            # decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence())
+            decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence())
             # for debugging
-            decision = dict()
-            decision['decision'] = 'sell'
-            decision['amount'] = '1000'
-            decision['ET'] = '1h 30m'
-            decision['profit'] = '0'
-            decision['reason'] = 'adsfadsfadfs'
+            # decision = dict()
+            # decision['decision'] = 'sell'
+            # decision['amount'] = '1000'
+            # decision['ET'] = '1h 30m'
+            # decision['profit'] = '0'
+            # decision['reason'] = 'adsfadsfadfs'
         except Exception as e:
             print("Error occured :", e)
             print("restarting...")
