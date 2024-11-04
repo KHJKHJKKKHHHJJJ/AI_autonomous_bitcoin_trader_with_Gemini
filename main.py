@@ -1,10 +1,3 @@
-
-'''
-1. env로 변환
-3. db 초기화 설정
-4. 파일들 다 하나로 구동되게 변경
-2. streamlit 연결
-'''
 print("========= Welcome to GEMINI BTC TRADER =========")
 print("initializing...")
 import bit_AI
@@ -40,12 +33,15 @@ timeout= 0
 timestamp = datetime.datetime.now()
 
 while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
-    if str(datetime.datetime.now())[:10] > str(timestamp - datetime.timedelta(hours=9))[:10]:
+    dbop = sql.connect("./Record.db")
+    dbcs = dbop.cursor()
+    stamp = list(dbcs.execute("SELECT DATE FROM PRUDENCERECORD;"))
+    if str(datetime.datetime.now())[:10] > str(timestamp - datetime.timedelta(hours=9))[:10] or len(stamp) == 0:
         print("New day detected. Prudence AI will be processed...")
 
-        # pru_instruction = './Prudence Gemini Instruction.md'
-        # pru_chat_session = Prud_AI.gen_pru_model(get_instructions(pru_instruction))
-        # b = Prud_AI.gem_pru_sug(pru_chat_session)
+        pru_instruction = './Prudence Gemini Instruction.md'
+        pru_chat_session = Prud_AI.gen_pru_model(get_instructions(pru_instruction))
+        b = Prud_AI.gem_pru_sug(pru_chat_session)
 
         try:
             with sql.connect("./Record.db") as dbop:
@@ -62,92 +58,91 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
                         print(f"{date} data deleted")
 
                 if str(datetime.datetime.now())[:10] not in checker:
-                    # dbcs.execute("INSERT INTO PRUDENCERECORD VALUES(?,?,?);", [b[i] for i in list(b.keys())])
+                    dbcs.execute("INSERT INTO PRUDENCERECORD VALUES(?,?,?);", [b[i] for i in list(b.keys())])
                     pass
                 dbop.commit()
         except Exception as e:
             print("Error occured: ", e)
 
-        # print(b)
-    
-    else:
-        print("Trading AI will be processed...")
-        try:
-            decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence())
-            # for debugging
-            # decision = dict()
-            # decision['decision'] = 'sell'
-            # decision['amount'] = '1000'
-            # decision['ET'] = '1h 30m'
-            # decision['profit'] = '0'
-            # decision['reason'] = 'adsfadsfadfs'
-        except Exception as e:
-            print("Error occured :", e)
-            print("restarting...")
-            timeout = 10 * 60 
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-            asyncio.run(bit_AI.tel(f"ERROR OCCURED:\t{e}"))
-            if '429' in str(e):
-                continue
-            else:
-                break
-        try:
-            if decision['decision'] == 'buy':
-                print("Buying process will be proceeded")
-                buy_sign = bit_AI.market_buy(amount = float(decision['amount']))
+        print(b)
 
-                if json.loads(buy_sign)['result'] != 'success':
-                    print("Error Occured: ", end='')
-                    print(json.loads(buy_sign)['error_code'])
-
-            elif decision['decision'] == 'sell':
-                print("Selling process will be proceeded")
-                sell_sign = bit_AI.market_sell('BTC', decision['amount'])
-                if json.loads(sell_sign)['result'] != 'success':
-                    print("Error Occured: ", end='')
-                    print(json.loads(sell_sign)['error_code'])
-            elif decision['decision'] == 'hold':
-                print("Hold decision proceeded")
-                pass
-        except Exception as e:
-            print('Something went wrong.\n Error message: ', e)
-            timeout = 30 * 60
-            asyncio.run(bit_AI.tel(f"""==== Transaction Recipt ====\n
-    Decision:\t{decision['decision']}\n
-    Reason:\t{decision['reason']}\n
-    Amount:\t{decision['amount']}\n
-    profit:\t{decision['profit']}\n
-    Estimated Time:\t{decision['ET']}"""))
-
-        print("======== Transaction Recipt ========")
-        print("Decision:\t",        decision['decision'])
-        print("Reason:\t",          decision['reason'])
-        print("Amount:\t",          decision['amount'])
-        print('profit:\t',          decision['profit'])
-        print('Estimated Time:\t',  decision['ET'])
+    print("Trading AI will be processed...")
+    try:
+        decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence())
+        # for debugging
+        # decision = dict()
+        # decision['decision'] = 'sell'
+        # decision['amount'] = '1000'
+        # decision['ET'] = '1h 30m'
+        # decision['profit'] = '0'
+        # decision['reason'] = 'adsfadsfadfs'
+    except Exception as e:
+        print("Error occured :", e)
+        print("restarting...")
+        timeout = 10 * 60 
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        asyncio.run(bit_AI.tel(f"ERROR OCCURED:\t{e}"))
+        if '429' in str(e):
+            continue
+        else:
+            break
+    try:
+        if decision['decision'] == 'buy':
+            print("Buying process will be proceeded")
+            buy_sign = bit_AI.market_buy(amount = float(decision['amount']))
+
+            if json.loads(buy_sign)['result'] != 'success':
+                print("Error Occured: ", end='')
+                print(json.loads(buy_sign)['error_code'])
+
+        elif decision['decision'] == 'sell':
+            print("Selling process will be proceeded")
+            sell_sign = bit_AI.market_sell('BTC', decision['amount'])
+            if json.loads(sell_sign)['result'] != 'success':
+                print("Error Occured: ", end='')
+                print(json.loads(sell_sign)['error_code'])
+        elif decision['decision'] == 'hold':
+            print("Hold decision proceeded")
+            pass
+    except Exception as e:
+        print('Something went wrong.\n Error message: ', e)
+        timeout = 30 * 60
         asyncio.run(bit_AI.tel(f"""==== Transaction Recipt ====\n
-    Decision:\t{decision['decision']}\n
-    Reason:\t{decision['reason']}\n
-    Amount:\t{decision['amount']}\n
-    profit:\t{decision['profit']}\n
-    Estimated Time:\t{decision['ET']}"""))
+Decision:\t{decision['decision']}\n
+Reason:\t{decision['reason']}\n
+Amount:\t{decision['amount']}\n
+profit:\t{decision['profit']}\n
+Estimated Time:\t{decision['ET']}"""))
 
-        timeout = 0
-        e_time = decision['ET'].split(' ')
-        for i in range(len(e_time)):
-            if e_time[i][-1] == 'h':
-                timeout += int(e_time[i][:-1]) * 60 * 60
-            elif e_time[i][-1] == 'm':
-                timeout += int(e_time[i][:-1]) * 60
-        
-        print(timeout)
+    print("======== Transaction Recipt ========")
+    print("Decision:\t",        decision['decision'])
+    print("Reason:\t",          decision['reason'])
+    print("Amount:\t",          decision['amount'])
+    print('profit:\t',          decision['profit'])
+    print('Estimated Time:\t',  decision['ET'])
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(bit_AI.tel(f"""==== Transaction Recipt ====\n
+Decision:\t{decision['decision']}\n
+Reason:\t{decision['reason']}\n
+Amount:\t{decision['amount']}\n
+profit:\t{decision['profit']}\n
+Estimated Time:\t{decision['ET']}"""))
 
-        # reset timestamp
-        timestamp = datetime.datetime.now()
-        bit_AI.write_chat(json.dumps(decision))
+    timeout = 0
+    e_time = decision['ET'].split(' ')
+    for i in range(len(e_time)):
+        if e_time[i][-1] == 'h':
+            timeout += int(e_time[i][:-1]) * 60 * 60
+        elif e_time[i][-1] == 'm':
+            timeout += int(e_time[i][:-1]) * 60
+    
+    print(timeout)
 
-        try:
-            u_input = inputimeout("", timeout=timeout)
-        except Exception:
-            u_input = ''
+    # reset timestamp
+    timestamp = datetime.datetime.now()
+    bit_AI.write_chat(json.dumps(decision))
+
+    try:
+        u_input = inputimeout("", timeout=timeout)
+    except Exception:
+        u_input = ''
