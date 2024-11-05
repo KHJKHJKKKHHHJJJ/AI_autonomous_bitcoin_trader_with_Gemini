@@ -29,10 +29,10 @@ if len(prudence_table) > 2:
   tpi, ypi = prudence_table.iloc[-1:-3:-1, 1]
 elif len(prudence_table) == 1:
   tpi = prudence_table.iloc[-1, 1]
-  fpi = tpi
+  ypi = tpi
 else:
   tpi = "Prudence Index Not Found"
-  fpi = ""
+  ypi = ""
 
 col2.metric("Today's Prudence Index", f"{tpi}", f"{tpi - ypi}")
 
