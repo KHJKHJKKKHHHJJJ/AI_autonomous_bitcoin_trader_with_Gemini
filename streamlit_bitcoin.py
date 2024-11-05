@@ -48,7 +48,7 @@ trans_record = pd.DataFrame(list(dbcs.execute("SELECT * FROM CHATRECORD;")),
 
 transaction = st.container(border = True)
 transaction.header("Result")
-if len(trans_record) > 0):
+if len(trans_record) > 0:
   decision = trans_record.iloc[-1, 1]
 else:
   decision = 3
