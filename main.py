@@ -36,7 +36,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
     dbop = sql.connect("./Record.db")
     dbcs = dbop.cursor()
     stamp = list(dbcs.execute("SELECT DATE FROM PRUDENCERECORD;"))
-    if str(datetime.datetime.now())[:10] > str(timestamp - datetime.timedelta(hours=9))[:10] or len(stamp) == 0:
+    if (datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0:
         print("New day detected. Prudence AI will be processed...")
 
         pru_instruction = './Prudence Gemini Instruction.md'
@@ -65,6 +65,8 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
             print("Error occured: ", e)
 
         print(b)
+        # reset timestamp
+        timestamp = datetime.datetime.now()
 
     print("Trading AI will be processed...")
     try:
@@ -137,9 +139,6 @@ Estimated Time:\t{decision['ET']}"""))
             timeout += int(e_time[i][:-1]) * 60
     
     print(timeout)
-
-    # reset timestamp
-    timestamp = datetime.datetime.now()
     bit_AI.write_chat(json.dumps(decision))
 
     try:

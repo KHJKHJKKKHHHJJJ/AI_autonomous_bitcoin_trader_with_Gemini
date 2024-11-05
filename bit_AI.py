@@ -33,13 +33,13 @@ def gen_bit_model(instruction):
     generation_config = {
     "temperature": 0.8,
     "top_p": 0.95,
-    "top_k": 64,
+    "top_k": 40,
     "max_output_tokens": 8192,
     "response_mime_type": "application/json",
     }
 
     model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro-exp-0827",
+    model_name="gemini-1.5-flash",
     generation_config=generation_config,
     system_instruction=instruction,
     )
@@ -50,30 +50,34 @@ def get_btc():
     url = "https://api.coinone.co.kr/public/v2/chart/KRW/BTC?interval=30m&size=300"
     header = {"accept": "application/json"}
     bit_response = rqs.get(url, headers=header)
-    return bit_response
+    return bit_response.text
 
 def get_tech_indi():
     # If you get an error here, You should modify the pandas_ta's py files
-    chart = json.loads(get_btc().text, strict = False)['chart']
-    df = pd.DataFrame(chart).astype('float64')[::-1]
+    chart = json.loads(get_btc(), strict = False)['chart']
+    df = pd.DataFrame(chart).astype('float64')
     ha = hei(
             open_ = df['open'],
             high = df['high'],
             low = df['low'],
-            close = df['close']).astype('float64')
-
-    ha[['stochestic_k', 'stochestic_d']] = stochrsi(close = df['close'].astype('float64'), fillna = 0)
-    ha['ema200'] = ema(df['close'], length=200, fillna = 0, offset = 0)
-    ha = pd.concat([df[['timestamp', 'target_volume', 'quote_volume']], ha], axis=1).set_index('timestamp').iloc[300:]
-    # print(ha)
+            close = df['close']
+            )
+    ha[['stochestic_k', 'stochestic_d']] = stochrsi(close = df['close'])
+    ha['ema200'] = ema(df['close'], length=200)
+    ha = pd.concat([df[['timestamp', 'target_volume', 'quote_volume']], ha], axis=1).fillna(0)
     return json.dumps(ha.to_dict('list'))
 
 def gem_sug(chat_session, prudence):
-    response = chat_session.send_message(f'{get_tech_indi()} {prudence} {get_cur_status()}')
-    model_info = genai.get_model("models/gemini-1.5-pro-002")
+    chart = get_tech_indi()
+    if len(chart) > 1:
+        response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
+        # model_info = genai.get_model("models/gemini-1.5-pro-002")
     # print(f"{model_info.output_token_limit=}")
-    print(model_info.output_token_limit,"\n",response.usage_metadata)
-    return json.loads(response.text, strict = False)
+        # print(model_info.output_token_limit,"\n",response.usage_metadata)
+        return json.loads(response.text, strict = False)
+    else:
+        print("chart error")
+        return None
     # print(str(get_tech_indi()) + str(prudence) + str(get_cur_status()))
 
 def get_cur_status():
@@ -121,7 +125,6 @@ def wallet(currs):
     """returns balances, available, limit, average_price of given currencies
     type = list of dicts"""
     currs = currs.split(' ')
-    print(currs)
     from_wallet = json.loads(get_response(action='/v2.1/account/balance', 
                                payload={'access_token': os.getenv("Access"),
                                         'currencies': currs}), strict = False)
@@ -251,4 +254,4 @@ def send_tel(text):
 
 if __name__ == '__main__':
     # print(f'{get_tech_indi()} {get_today_prudence()} {get_cur_status()}')
-    print(wallet("BTC"))
+    print(gem_sug(gen_bit_model('./Bitcoin Gemini Instruction.md'), get_today_prudence()))
