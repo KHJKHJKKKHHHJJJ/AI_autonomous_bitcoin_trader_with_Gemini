@@ -63,7 +63,7 @@ elif decision == 1:
 elif decision == 2:
     decision = ['Hold', 'grey']
 else:
-  decision = ['Transaction Not Found', 'black']
+  decision = ['Transaction Not Found', 'grey']
 
 transaction.subheader(f"Last Decision: :{decision[1]}[{decision[0]}]")
 transaction.subheader(f"Estimated Profit/Loss: :{decision[1]}[{Ep}]", 
