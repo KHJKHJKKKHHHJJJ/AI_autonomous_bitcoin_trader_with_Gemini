@@ -122,7 +122,7 @@ Estimated Time:\t{decision['ET']}"""))
     print("Amount:\t",          decision['amount'])
     print('profit:\t',          decision['profit'])
     print('Estimated Time:\t',  decision['ET'])
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(bit_AI.tel(f"""==== Transaction Recipt ====\n
 Decision:\t{decision['decision']}\n
 Reason:\t{decision['reason']}\n
