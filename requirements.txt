@@ -3,7 +3,6 @@ numpy==1.26.3
 pandas
 httplib2
 bs4
-inputimeout
 pandas_ta
 python-dotenv
 streamlit
