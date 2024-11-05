@@ -82,7 +82,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
         print("Error occured :", e)
         print("restarting...")
         timeout = 10 * 60 
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(bit_AI.tel(f"ERROR OCCURED:\t{e}"))
         if '429' in str(e):
             continue
