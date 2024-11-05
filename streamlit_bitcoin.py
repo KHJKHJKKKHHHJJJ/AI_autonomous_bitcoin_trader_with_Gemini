@@ -50,10 +50,7 @@ transaction = st.container(border = True)
 transaction.header("Result")
 if len(trans_record) > 0:
   decision = trans_record.iloc[-1, 1]
-  if len(trans_record) > 1:
-    Ep = round(float(trans_record.iloc[-1, 2]), 2)
-  else:
-     Ep = "Decision Not Found."
+  Ep = round(float(trans_record.iloc[-1, 2]), 2)
 else:
   decision = 3
   Ep = "Decision Not Found."
