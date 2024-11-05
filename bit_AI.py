@@ -249,7 +249,7 @@ async def tel(text):
     await bot.send_message(chat_id="-4586399763", text=text) # delete it before publish
 
 def send_tel(text):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(tel(text))
 
 if __name__ == '__main__':
