@@ -55,7 +55,7 @@ Data might look like this
 Remember that you can change the values 
 ### When the decision is `buy`
 
-```{"decision": "buy", "amount": "10000", "profit": "1.5", "reason": "**Reason for Buy Decision:**
+```{"decision": "buy", "amount": "10000", "profit": "1.5", "reason": "**Reason for Buy Decision:** // amount would be in KRW, more than 5500 KRW
 
 1. **Potential Trend Reversal**: The Heikin Ashi candles are showing signs of a potential trend reversal from a downtrend to an uptrend. The most recent HA candle is green and has a larger body than the previous red candle, indicating a potential shift in momentum. 
 
@@ -73,7 +73,7 @@ A profit of 1.0% is expected within the next 1h 30m, at which point the price is
 
 ### When the decision is `sell`
 ```
-{"decision": "sell", "amount": "0.00006952", "reason": "**Reason for Sell Decision:**
+{"decision": "sell", "amount": "0.00006952", "reason": "**Reason for Sell Decision:** // amount would be in KRW/BTC value. but KRW value must be higher than 5500
 
 1. **Potential Trend Reversal**: The Heikin Ashi candles are showing signs of a potential trend reversal from an uptrend to a downtrend. The most recent HA candle is red, indicating a shift in momentum downwards.
 
