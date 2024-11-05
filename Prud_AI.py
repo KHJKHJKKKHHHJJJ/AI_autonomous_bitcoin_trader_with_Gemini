@@ -19,7 +19,7 @@ def gen_pru_model(instruction):
     generation_config = {
     "temperature": 1.5,
     "top_p": 0.95,
-    "top_k": 64,
+    "top_k": 40,
     "max_output_tokens": 8192,
     "response_mime_type": "application/json",
     }
@@ -38,7 +38,7 @@ def gem_pru_sug(chat_session):
     
     chat_record = ["".join(json.dumps(i)) for i in records]
 
-    response = chat_session.send_message(chat_record[0] + "today's date: " + str(datetime.datetime.now())[:10])
+    response = chat_session.send_message(chat_record + "today's date: " + str(datetime.datetime.now())[:10])
     return json.loads(response.text, strict = False)
     # print(chat_record[0] + "today's date: " + str(datetime.datetime.now())[:10])
 
@@ -118,15 +118,15 @@ def bring_fear_greed():
     print('getting FGIndex:', end='\t')
     with sql.connect('./Record.db') as dbop:
         dbcs = dbop.cursor()
-        fgi = pd.DataFrame(dbcs.execute('SELECT * FROM FGRECORD;'))
-    if str(datetime.datetime.now())[:10] not in list(fgi[0]):
+        fgi = pd.DataFrame(dbcs.execute('SELECT * FROM FGRECORD;'), columns = ['date', 'FGindex'])
+    if str(datetime.datetime.now())[:10] not in list(fgi['date']):
         print("Today FGI not found. \nExtracting...")
         write_fear_greed()
         bring_fear_greed()
     else:
         print("completed")
-        return json.dumps({'date': list(fgi[0]),
-                        'FGI' : list(fgi[1])})
+        return json.dumps({'date': list(fgi['date']),
+                        'FGI' : list(fgi['FGindex'])})
 
 def write_fear_greed():
     '''Records Fear_Greed Index of its date.
@@ -181,28 +181,4 @@ def get_trans_record():
 
 
 if __name__ == '__main__':
-    pru_instruction = './Prudence Gemini Instruction.md'
-    pru_chat_session = gen_pru_model(get_instructions(pru_instruction))
-    b = gem_pru_sug(pru_chat_session)
-
-    try:
-        with sql.connect("./Record.db") as dbop:
-            dbcs = dbop.cursor()
-            dateRecord = dbcs.execute('SELECT DATE FROM PRUDENCERECORD;')
-            checker = [j for i in list(dateRecord) for j in i]
-            print(len(checker))
-            
-            # initialize prudence record
-            if len(checker) == 11:
-                print("Prudence Record Initialize")
-                for date in checker[:7]:
-                    dbcs.execute(f"DELETE FROM PRUDENCERECORD WHERE DATE = '{date}';")
-                    print(f"{date} data deleted")
-
-            if str(datetime.datetime.now())[:10] not in checker:
-                dbcs.execute("INSERT INTO PRUDENCERECORD VALUES(?,?,?);", [b[i] for i in list(b.keys())])
-            dbop.commit()
-    except Exception as e:
-        print("Error occured: ", e)
-
-    print(b)
+    print(get_news())
