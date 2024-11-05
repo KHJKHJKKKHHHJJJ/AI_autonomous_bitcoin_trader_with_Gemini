@@ -15,33 +15,52 @@ st.header("Welcome To Gemini Bitcoin Assistant!")
 
 status = st.container(border = True)
 col1, col2 = status.columns(2)
-if fgtable.count() > 2:
+if len(fgtable) > 2:
   tfg, yfg = fgtable.iloc[-1:-3:-1, 1]
-else:
+elif len(fgtable) == 1:
   tfg = fgtable.iloc[-1, 1]
   yfg = tfg
+else:
+  tfg = "Fear Greed Not Found"
+  yfg = ""
   
 col1.metric("Today's Fear Greed Index", f"{tfg}", f"{tfg - yfg}")
-tpi, ypi = prudence_table.iloc[-1:-3:-1, 1]
+if len(prudence_table) > 2:
+  tpi, ypi = prudence_table.iloc[-1:-3:-1, 1]
+elif len(prudence_table) == 1:
+  tpi = prudence_table.iloc[-1, 1]
+  fpi = tpi
+else:
+  tpi = "Prudence Index Not Found"
+  fpi = ""
+
 col2.metric("Today's Prudence Index", f"{tpi}", f"{tpi - ypi}")
 
 prudence_reason = st.container(border = True)
 prudence_reason.header("Prudence Reason")
-prudence_reason.markdown(prudence_table.iloc[-1, -1])
+if len(prudence_table) > 0:
+  prudence_reason.markdown(prudence_table.iloc[-1, -1])
+else:
+  prudence_reason.write("Prudence Not Found.")
 
 trans_record = pd.DataFrame(list(dbcs.execute("SELECT * FROM CHATRECORD;")), 
                             columns="Date,Decision,ProLoss,EstimatedTime,Price,Reason".split(','))
 
 transaction = st.container(border = True)
 transaction.header("Result")
-decision = trans_record.iloc[-1, 1]
+if len(trans_record) > 0):
+  decision = trans_record.iloc[-1, 1]
+else:
+  decision = 3
 # decision switcher
 if decision == 0:
     decision = ['Buy', 'green']
 elif decision == 1:
     decision = ['Sell', 'red']
-else:
+elif decision == 2:
     decision = ['Hold', 'grey']
+else:
+  decision = ['Transaction Not Found', 'black']
 
 transaction.subheader(f"Last Decision: :{decision[1]}[{decision[0]}]")
 transaction.subheader(f"Estimated Profit/Loss: :{decision[1]}[{int(trans_record.iloc[-1, 2])}]", 
