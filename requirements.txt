@@ -7,5 +7,4 @@ inputimeout
 pandas_ta
 python-dotenv
 streamlit
-telegram
-asyncio
+python-telgram-bot
