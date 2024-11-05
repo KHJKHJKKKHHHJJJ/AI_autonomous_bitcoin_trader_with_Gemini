@@ -50,8 +50,14 @@ transaction = st.container(border = True)
 transaction.header("Result")
 if len(trans_record) > 0:
   decision = trans_record.iloc[-1, 1]
+  if len(trans_record) > 1:
+    Ep = round(float(trans_record.iloc[-1, 2]), 2)
+  else:
+     Ep = "Decision Not Found."
 else:
   decision = 3
+  Ep = "Decision Not Found."
+
 # decision switcher
 if decision == 0:
     decision = ['Buy', 'green']
@@ -63,7 +69,7 @@ else:
   decision = ['Transaction Not Found', 'black']
 
 transaction.subheader(f"Last Decision: :{decision[1]}[{decision[0]}]")
-transaction.subheader(f"Estimated Profit/Loss: :{decision[1]}[{int(trans_record.iloc[-1, 2])}]", 
+transaction.subheader(f"Estimated Profit/Loss: :{decision[1]}[{Ep}]", 
                       divider = 'grey')
 transaction.header("Status")
 
@@ -91,7 +97,12 @@ inKRW = round((currency - avg) * float(wallet('BTC')[0]['available']), 0)
 transaction.subheader(f"Current Profit(%): :{status_color[0]}[{round(curr_profit, 2)}]")
 transaction.subheader(f"Current Profit(KRW): :{status_color[0]}[{inKRW}]")
 
-sum_proloss = round(float(list(dbcs.execute("SELECT SUM(PROFIT) FROM TRANSRECORD;"))[0][0]), 2)
+profit = list(dbcs.execute("SELECT SUM(PROFIT) FROM TRANSRECORD;"))
+if len(profit) > 0:
+    sum_proloss = round(float([0][0]), 2)
+else:
+   sum_proloss = 0
+
 if sum_proloss > 0:
     cum_col = ['green']
 elif sum_proloss == 0:
