@@ -38,7 +38,7 @@ def gem_pru_sug(chat_session):
     
     chat_record = ["".join(json.dumps(i)) for i in records]
 
-    response = chat_session.send_message(chat_record[0] + "today's date: " + str(datetime.datetime.now())[:10])
+    response = chat_session.send_message(chat_record + "today's date: " + str(datetime.datetime.now())[:10])
     return json.loads(response.text, strict = False)
     # print(chat_record[0] + "today's date: " + str(datetime.datetime.now())[:10])
 
