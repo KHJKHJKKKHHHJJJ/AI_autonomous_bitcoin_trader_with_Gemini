@@ -181,4 +181,4 @@ def get_trans_record():
 
 
 if __name__ == '__main__':
-    print(get_news(), get_prudence(), bring_fear_greed())
+    print(gem_pru_sug(gen_pru_model("Prudence Gemini Instruction.md")))
