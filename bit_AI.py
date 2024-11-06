@@ -247,7 +247,7 @@ def write_chat(data):
 # Sending messages by telegram
 async def tel(text):
     bot = telegram.Bot(os.getenv("tel"))
-    await bot.send_message(chat_id="", text=text) # delete it before publish
+    await bot.send_message(chat_id=os.getenv("chat_id"), text=text) # delete it before publish
 
 def send_tel(text):
     # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
