@@ -39,7 +39,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
         dbop = sql.connect("./Record.db")
         dbcs = dbop.cursor()
         stamp = list(dbcs.execute("SELECT DATE FROM PRUDENCERECORD;"))
-        if (datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0:
+        if (datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0 or stamp[-1] != str(timestamp)[:10]:
             print("New day detected. Prudence AI will be processed...")
     
             pru_instruction = './Prudence Gemini Instruction.md'
