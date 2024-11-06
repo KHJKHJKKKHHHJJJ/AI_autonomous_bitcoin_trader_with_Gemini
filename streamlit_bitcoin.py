@@ -17,24 +17,26 @@ status = st.container(border = True)
 col1, col2 = status.columns(2)
 if len(fgtable) > 2:
   tfg, yfg = fgtable.iloc[-1:-3:-1, 1]
+  yfg = -yfg
 elif len(fgtable) == 1:
   tfg = fgtable.iloc[-1, 1]
-  yfg = tfg
+  yfg = -tfg
 else:
   tfg = "Fear Greed Not Found"
   yfg = ""
   
-col1.metric("Today's Fear Greed Index", f"{tfg}", f"{tfg - yfg}")
+col1.metric("Today's Fear Greed Index", f"{tfg}", f"{tfg + yfg}")
 if len(prudence_table) > 2:
   tpi, ypi = prudence_table.iloc[-1:-3:-1, 1]
+  ypi = -tpi
 elif len(prudence_table) == 1:
   tpi = prudence_table.iloc[-1, 1]
-  ypi = tpi
+  ypi = -tpi
 else:
   tpi = "Prudence Index Not Found"
   ypi = ""
 
-col2.metric("Today's Prudence Index", f"{tpi}", f"{tpi - ypi}")
+col2.metric("Today's Prudence Index", f"{tpi}", f"{tpi + ypi}")
 
 prudence_reason = st.container(border = True)
 prudence_reason.header("Prudence Reason")
