@@ -69,9 +69,9 @@ def get_tech_indi():
     return json.dumps(ha.to_dict('list'))
 
 def gem_sug(chat_session, prudence):
-    # chart = 
+    chart = get_tech_indi()
     if len(chart) > 1:
-        response = chat_session.send_message(f'{get_tech_indi()} {prudence} {get_cur_status()}')
+        response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
         # model_info = genai.get_model("models/gemini-1.5-pro-002")
     # print(f"{model_info.output_token_limit=}")
         # print(model_info.output_token_limit,"\n",response.usage_metadata)
