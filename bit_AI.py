@@ -229,7 +229,7 @@ def write_chat(data):
         decision = 3
         curr = 'BTC'
     
-    with sql.connect('./Record.DB') as dbop:
+    with sql.connect('./Record.db') as dbop:
         dbcs = dbop.cursor()
         try:
             dbcs.execute("INSERT INTO CHATRECORD VALUES(?, ?, ?, ?, ?, ?);", (date, decision, 
