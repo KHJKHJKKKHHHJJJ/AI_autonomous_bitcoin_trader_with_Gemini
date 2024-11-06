@@ -31,7 +31,7 @@ def gen_bit_model(instruction):
 
     # Create the model
     generation_config = {
-    "temperature": 0.8,
+    "temperature": 0.75,
     "top_p": 0.95,
     "top_k": 40,
     "max_output_tokens": 8192,
@@ -39,7 +39,7 @@ def gen_bit_model(instruction):
     }
 
     model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-1.5-pro-002",
     generation_config=generation_config,
     system_instruction=instruction,
     )
@@ -65,6 +65,7 @@ def get_tech_indi():
     ha[['stochestic_k', 'stochestic_d']] = stochrsi(close = df['close'])
     ha['ema200'] = ema(df['close'], length=200)
     ha = pd.concat([df[['timestamp', 'target_volume', 'quote_volume']], ha], axis=1).fillna(0)
+    print(ha['ema200'][-1], ha['HA_close'][-1])
     return json.dumps(ha.to_dict('list'))
 
 def gem_sug(chat_session, prudence):
@@ -246,7 +247,7 @@ def write_chat(data):
 # Sending messages by telegram
 async def tel(text):
     bot = telegram.Bot(os.getenv("tel"))
-    await bot.send_message(chat_id="-4586399763", text=text) # delete it before publish
+    await bot.send_message(chat_id="", text=text) # delete it before publish
 
 def send_tel(text):
     # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
