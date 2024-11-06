@@ -15,7 +15,7 @@ st.header("Welcome To Gemini Bitcoin Assistant!")
 
 status = st.container(border = True)
 col1, col2 = status.columns(2)
-if len(fgtable) > 2:
+if len(fgtable) >= 2:
   tfg, yfg = fgtable.iloc[-1:-3:-1, 1]
   yfg = -yfg
 elif len(fgtable) == 1:
@@ -26,7 +26,7 @@ else:
   yfg = ""
   
 col1.metric("Today's Fear Greed Index", f"{tfg}", f"{tfg + yfg}")
-if len(prudence_table) > 2:
+if len(prudence_table) >= 2:
   tpi, ypi = prudence_table.iloc[-1:-3:-1, 1]
   ypi = -tpi
 elif len(prudence_table) == 1:
