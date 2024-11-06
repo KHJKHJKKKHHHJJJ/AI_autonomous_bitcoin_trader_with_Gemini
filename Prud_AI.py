@@ -34,11 +34,8 @@ def gen_pru_model(instruction):
 
 
 def gem_pru_sug(chat_session):
-    records = get_chat_record(), bring_fear_greed(), get_news(), get_prudence(), get_trans_record()
-    
-    chat_record = ["".join(json.dumps(i)) for i in records]
-
-    response = chat_session.send_message(chat_record + "today's date: " + str(datetime.datetime.now())[:10])
+    records = f"{get_chat_record()}, {bring_fear_greed()}, {get_news()}, {get_prudence()}, {get_trans_record()}"
+    response = chat_session.send_message(records + "today's date: " + str(datetime.datetime.now())[:10])
     return json.loads(response.text, strict = False)
     # print(chat_record[0] + "today's date: " + str(datetime.datetime.now())[:10])
 
