@@ -65,13 +65,13 @@ def get_tech_indi():
     ha[['stochestic_k', 'stochestic_d']] = stochrsi(close = df['close'])
     ha['ema200'] = ema(df['close'], length=200)
     ha = pd.concat([df[['timestamp', 'target_volume', 'quote_volume']], ha], axis=1).fillna(0)
-    print(ha['ema200'][-1], ha['HA_close'][-1])
+    # print(ha['ema200'][-1], ha['HA_close'][-1])
     return json.dumps(ha.to_dict('list'))
 
 def gem_sug(chat_session, prudence):
-    chart = get_tech_indi()
+    # chart = 
     if len(chart) > 1:
-        response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
+        response = chat_session.send_message(f'{get_tech_indi()} {prudence} {get_cur_status()}')
         # model_info = genai.get_model("models/gemini-1.5-pro-002")
     # print(f"{model_info.output_token_limit=}")
         # print(model_info.output_token_limit,"\n",response.usage_metadata)
