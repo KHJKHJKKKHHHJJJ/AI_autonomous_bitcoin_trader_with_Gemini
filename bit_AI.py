@@ -39,7 +39,7 @@ def gen_bit_model(instruction):
     }
 
     model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro",
+    model_name="gemini-1.5-pro-002",
     generation_config=generation_config,
     system_instruction=instruction,
     )
