@@ -233,12 +233,12 @@ def write_chat(data):
         dbcs = dbop.cursor()
         try:
             dbcs.execute("INSERT INTO CHATRECORD VALUES(?, ?, ?, ?, ?, ?);", (date, decision, 
-                                                                            float(chat['amount']) / float(wallet(curr)[0]['available']) * 100,
+                                                                            chat['profit'],
                                                                             chat['ET'],
                                                                             get_btc_index(), chat['reason']))
-        except ZeroDivisionError:
-            dbcs.execute("INSERT INTO CHATRECORD VALUES(?, ?, ?, ?, ?, ?)", (date, decision, 
-                                                                            0,
+        except:
+            dbcs.execute("INSERT INTO CHATRECORD VALUES(?, ?, ?, ?, ?, ?);", (date, decision, 
+                                                                            chat['loss'],
                                                                             chat['ET'],
                                                                             get_btc_index(), chat['reason']))
         dbop.commit()
