@@ -26,6 +26,12 @@ import telegram
 import asyncio
 
 # related to Gemini
+def model_usage():
+    model_info = genai.get_model("models/gemini-1.5-pro-002")
+    print(f"{model_info.output_token_limit}")
+    print(model_info.output_token_limit,"\n",response.usage_metadata)
+    asyncio.run(tel(f"{model_info.output_token_limit} | {response.usage_metadata}"))
+    
 def gen_bit_model(instruction):
     genai.configure(api_key = os.getenv("Gemini"))
 
@@ -43,11 +49,10 @@ def gen_bit_model(instruction):
     generation_config=generation_config,
     system_instruction=instruction,
     )
-
     return model.start_chat()
 
 def get_btc():
-    url = "https://api.coinone.co.kr/public/v2/chart/KRW/BTC?interval=30m&size=300"
+    url = "https://api.coinone.co.kr/public/v2/chart/KRW/BTC?interval=1h&size=300"
     header = {"accept": "application/json"}
     bit_response = rqs.get(url, headers=header)
     return bit_response.text
@@ -72,9 +77,6 @@ def gem_sug(chat_session, prudence):
     chart = get_tech_indi()
     if len(chart) > 1:
         response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
-        # model_info = genai.get_model("models/gemini-1.5-pro-002")
-    # print(f"{model_info.output_token_limit=}")
-        # print(model_info.output_token_limit,"\n",response.usage_metadata)
         return json.loads(response.text, strict = False)
     else:
         print("chart error")
