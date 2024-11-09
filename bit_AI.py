@@ -27,7 +27,7 @@ import asyncio
 
 # related to Gemini
 def model_usage(response):
-    model_info = genai.get_model("models/gemini-1.5-flash")
+    model_info = genai.get_model("models/gemini-1.5-pro-002")
     print(f"{model_info.output_token_limit}")
     print(model_info.output_token_limit,"\n",response.usage_metadata)
     asyncio.run(tel(f"{model_info.output_token_limit} | {response.usage_metadata}"))
@@ -45,7 +45,7 @@ def gen_bit_model(instruction):
     }
 
     model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-002",
+    model_name="gemini-1.5-pro-002",
     generation_config=generation_config,
     system_instruction=instruction,
     )
