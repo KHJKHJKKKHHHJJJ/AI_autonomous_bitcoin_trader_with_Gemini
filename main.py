@@ -45,6 +45,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
             pru_instruction = './Prudence Gemini Instruction.md'
             pru_chat_session = Prud_AI.gen_pru_model(get_instructions(pru_instruction))
             b = Prud_AI.gem_pru_sug(pru_chat_session)
+            bit_AI.model_usage()
     
             try:
                 with sql.connect("./Record.db") as dbop:
@@ -75,6 +76,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
         time.sleep(30)
         try:
             decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence())
+            bit_AI.model_usage()
             # for debugging
             # decision = dict()
             # decision['decision'] = 'sell'
@@ -88,10 +90,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
             timeout = 10 * 60 
             # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
             asyncio.run(bit_AI.tel(f"ERROR OCCURED:\t{e}"))
-            if '429' in str(e):
-                continue
-            else:
-                break
+            break
         try:
             if decision['decision'] == 'buy':
                 print("Buying process will be proceeded")
