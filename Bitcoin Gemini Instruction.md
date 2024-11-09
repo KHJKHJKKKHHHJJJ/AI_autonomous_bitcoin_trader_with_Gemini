@@ -54,7 +54,7 @@ Data might look like this
 = `amount` : With one of these decisions, give me how much `amount` should I buy or sell **based on Current Wallet Status**. Currency of `amount` could be in KRW or BTC whether decision is buy or sell. when the decision is `buy` put KRW amount, but when it's `sell` put BTC amount. Also minimum amount of transaction is 5500 in KRW You have to be aware of it.
 - `profit`: how much profit are you expecting. when the `decision` is **`sell`**, it should be **negative value.**
 - `reason`: **be specific** with it. **USE MARKDOWN FORMAT**. **Especially for ema200, put the both exact current value of price and ema 200.**
-- 'ET' : It's Estimated Time of **reaching profit that you expected**. It is also the **time that you'll be called again**. Therefore, I want you to **set this amount carefully**. "15m" < ET < "4h"
+- 'ET' : It's Estimated Time of **reaching profit that you expected**. It is also the **time that you'll be called again**. Therefore, I want you to **set this amount carefully**. "1h" < ET < "8h"
 
 Remember that you can change the values 
 ### When the decision is `buy`
