@@ -10,6 +10,7 @@ import datetime
 import requests as rqs
 from bs4 import BeautifulSoup
 import pandas as pd
+from bit_AI import model_usage
 
 
 def gen_pru_model(instruction):
@@ -35,8 +36,8 @@ def gen_pru_model(instruction):
 
 def gem_pru_sug(chat_session):
     records = f"{get_chat_record()}, {bring_fear_greed()}, {get_news()}, {get_prudence()}, {get_trans_record()}"
-    print(records)
     response = chat_session.send_message(records + "today's date: " + str(datetime.datetime.now())[:10])
+    model_usage(response)
     return json.loads(response.text, strict = False)
     # print(chat_record[0] + "today's date: " + str(datetime.datetime.now())[:10])
 
