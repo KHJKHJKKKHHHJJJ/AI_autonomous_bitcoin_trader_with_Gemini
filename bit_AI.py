@@ -77,6 +77,7 @@ def gem_sug(chat_session, prudence):
     chart = get_tech_indi()
     if len(chart) > 1:
         response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
+        model_usage(response)
         return json.loads(response.text, strict = False)
     else:
         print("chart error")
