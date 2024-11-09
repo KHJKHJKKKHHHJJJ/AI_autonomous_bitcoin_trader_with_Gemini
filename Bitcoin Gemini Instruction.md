@@ -66,7 +66,7 @@ Your response must include:
 
 "reason": Detailed explanation in Markdown format, including specific values for price and EMA200.
 
-"ET": Estimated time to reach the expected profit (and your next evaluation time). Must be between 15 minutes and 4 hours. Choose carefully.
+"ET": Estimated time to reach the expected profit (and your next evaluation time). Must be between 1 hour and 7 hours. Choose carefully.
 }
 ```
 (See original prompt for examples of buy, sell, and hold responses, adjusted for the clarified data format.)
@@ -85,7 +85,7 @@ decision : buy
 **Expected Profit and Estimated Time:**
 
 A profit of 1.0% is expected within the next 1h 30m, at which point the price is anticipated to reach a level that justifies selling to realize the profit.  
-", "ET": "28m"}
+", "ET": "3h"}
 ```
 decision : sell
 ```json
@@ -121,7 +121,7 @@ decision : hold
 
 Holding is the recommended decision. It is crucial to wait for a stronger indication of a bullish trend reversal before considering a buy position. A decisive break above the EMA200, a convincing move of the Stochastic RSI into overbought territory, and a series of bullish Heikin Ashi candles would offer a more reliable signal for a buy entry.
 
-The estimated time for the next evaluation is set to 20m to allow for potential market developments and the possible emergence of clearer signals for a buy decision.", "profit": "0", ET: "40m"}
+The estimated time for the next evaluation is set to 20m to allow for potential market developments and the possible emergence of clearer signals for a buy decision.", "profit": "0", ET: "1h"}
 ```
 
 Important Considerations
