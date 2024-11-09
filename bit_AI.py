@@ -26,7 +26,7 @@ import telegram
 import asyncio
 
 # related to Gemini
-def model_usage():
+def model_usage(response):
     model_info = genai.get_model("models/gemini-1.5-flash-002")
     print(f"{model_info.output_token_limit}")
     print(model_info.output_token_limit,"\n",response.usage_metadata)
