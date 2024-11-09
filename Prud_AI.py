@@ -140,7 +140,7 @@ def write_fear_greed():
         print("response error occured", response.status_code)
         return 
     soup = BeautifulSoup(response.text, 'html.parser')
-    fear_greed = int(soup.find('span', 'greed-background-3').text)
+    fear_greed = int(soup.find('span', 'greed-background-4').text)
     date = str(datetime.datetime.today())[:10]
     
     with sql.connect('Record.db') as dbop:
