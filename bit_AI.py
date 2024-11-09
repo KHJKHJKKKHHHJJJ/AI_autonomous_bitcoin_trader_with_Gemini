@@ -27,7 +27,7 @@ import asyncio
 
 # related to Gemini
 def model_usage(response):
-    model_info = genai.get_model("models/gemini-1.5-flash-002")
+    model_info = genai.get_model("models/gemini-1.5-flash")
     print(f"{model_info.output_token_limit}")
     print(model_info.output_token_limit,"\n",response.usage_metadata)
     asyncio.run(tel(f"{model_info.output_token_limit} | {response.usage_metadata}"))
@@ -60,7 +60,8 @@ def get_btc():
 def get_tech_indi():
     # If you get an error here, You should modify the pandas_ta's py files
     chart = json.loads(get_btc(), strict = False)['chart']
-    df = pd.DataFrame(chart).astype('float64')
+    df = pd.DataFrame(chart).astype('float64')[::-1]
+    df['timestamp'] /= 100000
     ha = hei(
             open_ = df['open'],
             high = df['high'],
@@ -257,5 +258,5 @@ def send_tel(text):
     asyncio.run(tel(text))
 
 if __name__ == '__main__':
-    # print(f'{get_tech_indi()} {get_today_prudence()} {get_cur_status()}')
-    print(gem_sug(gen_bit_model('./Bitcoin Gemini Instruction.md'), get_today_prudence()))
+    print(f'{get_tech_indi().replace("\n", " ")}\n{75}\n{get_cur_status()}'.replace('], ', '], \n'))
+    # print(gem_sug(gen_bit_model('./Bitcoin Gemini Instruction.md'), get_today_prudence()))
