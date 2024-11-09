@@ -76,8 +76,9 @@ def get_tech_indi():
 
 def gem_sug(chat_session, prudence):
     chart = get_tech_indi()
+    to_give = f'{chart.replace("\n", " ")}\n{75}\n{get_cur_status()}'.replace('], ', '], \n')
     if len(chart) > 1:
-        response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
+        response = chat_session.send_message(to_give)
         model_usage(response)
         return json.loads(response.text, strict = False)
     else:
