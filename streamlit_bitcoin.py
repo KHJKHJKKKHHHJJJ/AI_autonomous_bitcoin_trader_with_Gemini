@@ -98,7 +98,7 @@ transaction.subheader(f"Current Profit(KRW): :{status_color[0]}[{inKRW}]")
 
 profit = list(dbcs.execute("SELECT SUM(PROFIT) FROM TRANSRECORD;"))
 if len(profit) > 0:
-    sum_proloss = round(float([0][0]), 2)
+    sum_proloss = round(float(profit[0][0]), 2)
 else:
    sum_proloss = 0
 
