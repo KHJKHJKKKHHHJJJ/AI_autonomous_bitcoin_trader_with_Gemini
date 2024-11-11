@@ -67,8 +67,8 @@ elif decision == 2:
 else:
   decision = ['Transaction Not Found', 'grey']
 
-transaction.subheader(f"Last Decision: :{decision[1]}[{decision[0]}]")
-transaction.subheader(f"Estimated Profit/Loss: :{decision[1]}[{Ep}]", 
+transaction.subheader(f"Last Decision:\t:{decision[1]}[{decision[0]}]")
+transaction.subheader(f"Estimated Profit/Loss:\t:{decision[1]}[{Ep}]", 
                       divider = 'grey')
 transaction.header("Status")
 
@@ -93,14 +93,21 @@ else:
 
 inKRW = round((currency - avg) * float(wallet('BTC')[0]['available']), 0)
 
-transaction.subheader(f"Current Profit(%): :{status_color[0]}[{round(curr_profit, 2)}]")
-transaction.subheader(f"Current Profit(KRW): :{status_color[0]}[{inKRW}]")
+transaction.subheader(f"Current Profit(%):\t:{status_color[0]}[{round(curr_profit, 2)}]")
+transaction.subheader(f"Current Profit(KRW):\t:{status_color[0]}[{inKRW}]")
 
 profit = list(dbcs.execute("SELECT SUM(PROFIT) FROM TRANSRECORD;"))
+pro_am = list(dbcs.execute("SELECT SUM(AMOUNT) FROM TRANSRECORD;"))
+
 if len(profit) > 0:
     sum_proloss = round(float(profit[0][0]), 2)
 else:
    sum_proloss = 0
+  
+if len(pro_am) > 0:
+   sum_pro_am = round(pro_am[0][0], 2)
+else:
+   sum_pro_am = 0
 
 if sum_proloss > 0:
     cum_col = ['green']
@@ -109,6 +116,7 @@ elif sum_proloss == 0:
 else:
     cum_col = ['red']
 
-transaction.subheader(f"Cumulative Profit(%): :{cum_col[0]}[{sum_proloss}]")
+transaction.subheader(f"Cumulative Profit(%):\t:{cum_col[0]}[{sum_proloss}]")
+transaction.subheader(f"Cumulative Profit(KRW):\t:{cum_col[0]}[{sum_pro_am}]")
 
 dbop.close()
