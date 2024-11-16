@@ -74,7 +74,10 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
 
         print("Trading AI will be processed...")
         try:
-            decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence(), timeout / 60 / 60)
+            if timeout != 0:
+                decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence(), timeout / 60 / 60)
+            else:
+                decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence(), 299)
             # for debugging
             # decision = dict()
             # decision['decision'] = 'sell'
