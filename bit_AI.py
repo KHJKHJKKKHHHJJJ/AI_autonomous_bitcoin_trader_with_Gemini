@@ -27,7 +27,7 @@ import asyncio
 
 # related to Gemini
 def model_usage(response):
-    model_info = genai.get_model("models/gemini-1.5-pro-002")
+    model_info = genai.get_model("models/gemini-1.5-flash-002")
     print(f"{model_info.output_token_limit}")
     print(model_info.output_token_limit,"\n",response.usage_metadata)
     asyncio.run(tel(f"{model_info.output_token_limit} | {response.usage_metadata}"))
@@ -45,7 +45,7 @@ def gen_bit_model(instruction):
     }
 
     model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro-002",
+    model_name="gemini-1.5-flash-002",
     generation_config=generation_config,
     system_instruction=instruction,
     )
@@ -60,7 +60,7 @@ def get_btc():
 def get_tech_indi():
     # If you get an error here, You should modify the pandas_ta's py files
     chart = json.loads(get_btc(), strict = False)['chart']
-    df = pd.DataFrame(chart).astype('float64')[::-1]
+    df = pd.DataFrame(chart).astype('float64')
     df['timestamp'] /= 100000
     ha = hei(
             open_ = df['open'],
@@ -68,17 +68,18 @@ def get_tech_indi():
             low = df['low'],
             close = df['close']
             )
-    ha[['stochestic_k', 'stochestic_d']] = stochrsi(close = df['close'])
-    ha['ema200'] = ema(df['close'], length=200)
+    rsi = stochrsi(close = df['close'], length = 14, k = 3, d = 3, rsi_length= 14, )
+    ema200 = ema(df['close'], langth = 200)
+    ha[['stochestic_k', 'stochestic_d']] = rsi[::-1].reset_index(drop = True)
+    ha['ema200'] = ema200[::-1].reset_index(drop = True)
     ha = pd.concat([df[['timestamp', 'target_volume', 'quote_volume']], ha], axis=1).fillna(0)
-    # print(ha['ema200'][-1], ha['HA_close'][-1])
-    return json.dumps(ha.to_dict('list'))
+    # ha[['ema200', 'stochestic_k', 'stochestic_d']] = ha.loc[::-1, ['ema200', 'stochestic_k', 'stochestic_d']]
+    return ha
 
-def gem_sug(chat_session, prudence):
-    chart = get_tech_indi()
-    to_give = f'{chart.replace("\n", " ")}\n{75}\n{get_cur_status()}'.replace('], ', '], \n')
+def gem_sug(chat_session, prudence, term):
+    chart = get_tech_indi()[:term + 1]
     if len(chart) > 1:
-        response = chat_session.send_message(to_give)
+        response = chat_session.send_message(f'{chart} {prudence} {get_cur_status()}')
         model_usage(response)
         return json.loads(response.text, strict = False)
     else:
@@ -259,5 +260,6 @@ def send_tel(text):
     asyncio.run(tel(text))
 
 if __name__ == '__main__':
-    print(f'{get_tech_indi().replace("\n", " ")}\n{75}\n{get_cur_status()}'.replace('], ', '], \n'))
+    chart = get_tech_indi().iloc[:5]
+    print(f'{chart}\n{75}\n{get_cur_status()}'.replace('], ', '], \n'))
     # print(gem_sug(gen_bit_model('./Bitcoin Gemini Instruction.md'), get_today_prudence()))

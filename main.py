@@ -30,8 +30,8 @@ bit_chat_session = bit_AI.gen_bit_model(get_instructions(bit_instruction))
 former_dec = 3 # 1 = sell/ 0 = buy/ 3 = initial
 
 u_input = ''
-timeout= 0
 ticker = 0
+timeout = 0
 timestamp = datetime.datetime.now()
 
 while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
@@ -39,14 +39,14 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
         dbop = sql.connect("./Record.db")
         dbcs = dbop.cursor()
         stamp = list(dbcs.execute("SELECT DATE FROM PRUDENCERECORD;"))
-        if ((datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0 or stamp[-1][0] != str(timestamp)[:10]) and stamp[-1][0] != str(datetime.datetime.now())[:10]:
+        print(stamp)
+        if (datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0 or stamp[-1] != str(timestamp)[:10]:
             print("New day detected. Prudence AI will be processed...")
-    
+
             pru_instruction = './Prudence Gemini Instruction.md'
             pru_chat_session = Prud_AI.gen_pru_model(get_instructions(pru_instruction))
             b = Prud_AI.gem_pru_sug(pru_chat_session)
 
-    
             try:
                 with sql.connect("./Record.db") as dbop:
                     dbcs = dbop.cursor()
@@ -60,22 +60,21 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
                         for date in checker[:7]:
                             dbcs.execute(f"DELETE FROM PRUDENCERECORD WHERE DATE = '{date}';")
                             print(f"{date} data deleted")
-    
+
                     if str(datetime.datetime.now())[:10] not in checker:
                         dbcs.execute("INSERT INTO PRUDENCERECORD VALUES(?,?,?);", [b[i] for i in list(b.keys())])
                         pass
                     dbop.commit()
             except Exception as e:
                 print("Error occured: ", e)
-    
+
             print(b)
             # reset timestamp
             timestamp = datetime.datetime.now()
-    
+
         print("Trading AI will be processed...")
-        time.sleep(30)
         try:
-            decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence())
+            decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence(), timeout / 60 / 60)
             # for debugging
             # decision = dict()
             # decision['decision'] = 'sell'
@@ -88,17 +87,21 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
             print("restarting...")
             timeout = 10 * 60 
             # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            # asyncio.run()
             asyncio.run(bit_AI.tel(f"ERROR OCCURED:\t{e}"))
-            break
+            if '429' in str(e):
+                continue
+            else:
+                break
         try:
             if decision['decision'] == 'buy':
                 print("Buying process will be proceeded")
                 buy_sign = bit_AI.market_buy(amount = float(decision['amount']))
-    
+
                 if json.loads(buy_sign)['result'] != 'success':
                     print("Error Occured: ", end='')
                     print(json.loads(buy_sign)['error_code'])
-    
+
             elif decision['decision'] == 'sell':
                 print("Selling process will be proceeded")
                 sell_sign = bit_AI.market_sell('BTC', decision['amount'])
@@ -117,12 +120,21 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
     Amount:\t{decision['amount']}\n
     profit:\t{decision['profit']}\n
     Estimated Time:\t{decision['ET']}"""))
-    
+
         print("======== Transaction Recipt ========")
-        print("Decision:\t",        decision)
+        print("Decision:\t",        decision['decision'])
+        print("Reason:\t",          decision['reason'])
+        print("Amount:\t",          decision['amount'])
+        print('profit:\t',          decision['profit'])
+        print('Estimated Time:\t',  decision['ET'])
         # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        asyncio.run(bit_AI.tel(f"""==== Transaction Recipt ====\n{decision}"""))
-    
+        asyncio.run(bit_AI.tel(f"""==== Transaction Recipt ====\n
+    Decision:\t{decision['decision']}\n
+    Reason:\t{decision['reason']}\n
+    Amount:\t{decision['amount']}\n
+    profit:\t{decision['profit']}\n
+    Estimated Time:\t{decision['ET']}"""))
+
         timeout = 0
         e_time = decision['ET'].split(' ')
         for i in range(len(e_time)):
@@ -132,9 +144,8 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
                 timeout += int(e_time[i][:-1]) * 60
         
         print(timeout)
-        ticker = 0
         bit_AI.write_chat(json.dumps(decision))
+        ticker = 0
     else:
         ticker += 60
         time.sleep(60)
-
