@@ -68,7 +68,7 @@ def get_tech_indi():
             low = df['low'],
             close = df['close']
             )
-    rsi = stochrsi(close = df['close'], length = 14, k = 3, d = 3, rsi_length= 14, )
+    rsi = 100 - stochrsi(close = df['close'], length = 14, k = 3, d = 3, rsi_length= 14, )
     ema200 = ema(df['close'], langth = 200)
     ha[['stochestic_k', 'stochestic_d']] = rsi[::-1].reset_index(drop = True)
     ha['ema200'] = ema200[::-1].reset_index(drop = True)
