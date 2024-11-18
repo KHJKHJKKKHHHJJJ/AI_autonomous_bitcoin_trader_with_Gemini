@@ -40,7 +40,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
         dbcs = dbop.cursor()
         stamp = list(dbcs.execute("SELECT DATE FROM PRUDENCERECORD;"))
         print(stamp)
-        if (datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0 or stamp[-1] != str(timestamp)[:10]:
+        if ((datetime.datetime.now() - timestamp) > datetime.timedelta(hours=23) or len(stamp) == 0 or stamp[-1][0] != str(timestamp)[:10]) and stamp[-1][0] != str(datetime.datetime.now())[:10]:   
             print("New day detected. Prudence AI will be processed...")
 
             pru_instruction = './Prudence Gemini Instruction.md'
@@ -73,6 +73,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
             timestamp = datetime.datetime.now()
 
         print("Trading AI will be processed...")
+        time.sleep(60)
         try:
             if timeout != 0:
                 decision = bit_AI.gem_sug(bit_chat_session, bit_AI.get_today_prudence(), timeout / 60 / 60)
