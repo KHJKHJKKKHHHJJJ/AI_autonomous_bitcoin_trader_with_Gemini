@@ -28,7 +28,7 @@ else:
 col1.metric("Today's Fear Greed Index", f"{tfg}", f"{tfg + yfg}")
 if len(prudence_table) >= 2:
   tpi, ypi = prudence_table.iloc[-1:-3:-1, 1]
-  ypi = -tpi
+  ypi = -ypi
 elif len(prudence_table) == 1:
   tpi = prudence_table.iloc[-1, 1]
   ypi = -tpi
