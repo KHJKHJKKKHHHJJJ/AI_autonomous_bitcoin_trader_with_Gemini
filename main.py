@@ -94,6 +94,7 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
             # asyncio.run()
             asyncio.run(bit_AI.tel(f"ERROR OCCURED:\t{e}"))
             if '429' in str(e):
+                time.sleep(30 * 60 * 60)
                 continue
             else:
                 break
