@@ -25,4 +25,4 @@ Prudence AI setting a Prudence Index also gives a feedback from yesterday's deci
 Make a decision based on chart data, technical indicators, and Prudence Index. Once it makes a decision, it will automatically proceed a transaction, and send a transaction record to user via Telegram.
 
 # Caution
-- Before using this, please change the one of the file of Pandas_ta named `pandas_ta/overlap/ema.py`, first line `from numpy import npNaN` to `from numpy import nan as npNaN`.
+- Before using this, please change the one of the file of Pandas_ta named `pandas_ta/overlap/ema.py`, first line `from numpy import npNaN` to `from numpy import nan as npNaN`. **Fixed Problem**
