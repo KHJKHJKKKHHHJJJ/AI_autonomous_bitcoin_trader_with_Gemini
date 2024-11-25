@@ -10,6 +10,9 @@ Bitcoin trading assistant Gemini will help you to make money.
 - to install the packages, run
   - `pip install -r requirements.txt`
   - `pip3 install -r requirements.txt`
+- Ubuntu run
+  - streamlit: `nohup python3 -m streamlit run streamlit.py --server.port 8501 &`
+  - main: `nohup python3 -u main.py &`
  
 ## Prud_AI.py
 Prudence Index (0~100): By moderating prudence index, Gemini will make a decision more conservatively or Progressively. 
