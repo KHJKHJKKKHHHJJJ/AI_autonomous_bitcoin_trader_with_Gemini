@@ -27,7 +27,7 @@ import asyncio
 
 # related to Gemini
 def model_usage(response):
-    model_info = genai.get_model("gemini-2.0-flash-exp")
+    model_info = genai.get_model("models/gemini-2.0-flash-exp")
     print(f"{model_info.output_token_limit}")
     print(model_info.output_token_limit,"\n",response.usage_metadata)
     asyncio.run(tel(f"{model_info.output_token_limit} | {response.usage_metadata}"))
