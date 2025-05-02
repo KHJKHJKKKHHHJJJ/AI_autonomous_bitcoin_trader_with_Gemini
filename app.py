@@ -112,15 +112,10 @@ def load_log_data(log_file_path):
              logging.error(f"No valid timestamp data could be parsed or found in {log_file_path} after processing all lines.")
              return pd.DataFrame()
 
-        # Convert the column to datetime dtype if it's not already (might be object type if NaTs existed)
-        # This is crucial before using .dt accessor
-        if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
-             df[timestamp_col] = pd.to_datetime(df[timestamp_col]) # Convert object column with datetimes/NaT to proper dtype
-
         # --- Timezone Standardization (applied to datetime objects) ---
-        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]): # Check dtype AGAIN after potential conversion
+        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]) or df[timestamp_col].apply(lambda x: isinstance(x, datetime)).all(): # Check dtype OR if all are datetime objects
             # Localize naive timestamps (those without timezone info after parsing)
-            naive_mask = df[timestamp_col].dt.tz.isnull()
+            naive_mask = df[timestamp_col].dt.tz.isna()
             if naive_mask.any():
                 logging.debug(f"Localizing {naive_mask.sum()} naive timestamps in {log_file_path} to KST.")
                 try:
@@ -131,7 +126,7 @@ def load_log_data(log_file_path):
                     # Handle potential errors, maybe set to NaT manually if needed
 
             # Convert aware timestamps (those with timezone info after parsing) to KST
-            aware_mask = df[timestamp_col].dt.tz.notnull()
+            aware_mask = df[timestamp_col].dt.tz.notna()
             if aware_mask.any():
                 logging.debug(f"Converting {aware_mask.sum()} aware timestamps in {log_file_path} to KST.")
                 try:
@@ -141,7 +136,7 @@ def load_log_data(log_file_path):
                     logging.error(f"Error converting aware timestamps in {log_file_path}: {e_conv}. Problematic rows might become NaT.")
 
         else:
-             logging.warning(f"Timestamp column '{timestamp_col}' in {log_file_path} is not of datetime type after parsing attempts and final conversion.")
+             logging.warning(f"Timestamp column '{timestamp_col}' in {log_file_path} is not of datetime type after parsing attempts.")
 
         # Log rows with NaT timestamps before dropping (should be fewer/none now)
         nat_timestamps = df[pd.isna(df[timestamp_col])]
