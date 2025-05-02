@@ -203,89 +203,142 @@ st.title("📊 AI Bitcoin Trader Dashboard")
 
 # Load data from both log files
 prud_df = load_log_data(PRUD_LOG_FILE) # nested_key 인자 제거
-# Add logging immediately after loading prud_df
+
+# --- Check prud_df validity ---
+prud_df_valid = False
 if not prud_df.empty and 'role' in prud_df.columns:
     logging.info(f"Unique roles found in prud_df immediately after loading: {prud_df['role'].unique().tolist()}")
+    prud_df_valid = True # Mark as valid
 elif prud_df.empty:
     logging.warning("prud_df is empty after loading.")
+    st.warning(f"Could not load or process data from {PRUD_LOG_FILE}. Portfolio section might be unavailable.")
 else: # Not empty, but no 'role' column
-    logging.warning("prud_df loaded, but 'role' column is missing.")
+    logging.warning(f"prud_df loaded, but 'role' column is missing. Columns: {prud_df.columns.tolist()}")
+    st.warning(f"Data loaded from {PRUD_LOG_FILE} is missing the 'role' column. Portfolio section might be unavailable.")
 
 bit_df = load_log_data(BIT_LOG_FILE) # nested_key 인자 제거
 
 # --- Visualizations (Moved Up) --- #
 st.subheader("📈 Portfolio Overview")
 
-# 최신 포트폴리오 데이터 추출 (Prudence 로그에서)
-portfolio_logs = prud_df[prud_df['role'] == 'portfolio_summary']
-logging.info(f"Found {len(portfolio_logs)} portfolio log entries.") # 디버깅 로그 추가
-latest_portfolio_data = None
-if not portfolio_logs.empty:
-    logging.info(f"Columns in portfolio_logs: {portfolio_logs.columns.tolist()}") # 디버깅 로그 추가
-    if 'portfolio_data' in portfolio_logs.columns:
+# Only proceed if prud_df is valid
+if prud_df_valid:
+    # 최신 포트폴리오 데이터 추출 (Prudence 로그에서)
+    portfolio_logs = prud_df[prud_df['role'] == 'portfolio_summary'] # This line is now safe
+    logging.info(f"Found {len(portfolio_logs)} portfolio log entries.") # 디버깅 로그 추가
+    latest_portfolio_data = None
+    if not portfolio_logs.empty:
+        logging.info(f"Columns in portfolio_logs: {portfolio_logs.columns.tolist()}") # 디버깅 로그 추가
+        # Use .iloc[0] to get the Series for the latest log
         latest_portfolio_row = portfolio_logs.iloc[0]
         logging.info(f"Latest portfolio log row raw data: {latest_portfolio_row.to_dict()}") # 디버깅 로그 추가
-        portfolio_data_content = latest_portfolio_row['portfolio_data']
-        if isinstance(portfolio_data_content, dict):
-            latest_portfolio_data = portfolio_data_content
-            logging.info(f"Successfully extracted latest portfolio data: {latest_portfolio_data}") # 디버깅 로그 추가
+
+        # Check if 'portfolio_data' column EXISTS in the filtered logs (it might be missing if flattening failed for this specific log type)
+        if 'portfolio_data' in latest_portfolio_row and isinstance(latest_portfolio_row['portfolio_data'], dict):
+             latest_portfolio_data = latest_portfolio_row['portfolio_data']
+             logging.info(f"Successfully extracted latest portfolio data: {latest_portfolio_data}") # 디버깅 로그 추가
+        # Handle cases where portfolio_data might be a string representation (e.g., from older logs or errors)
+        elif 'portfolio_data' in latest_portfolio_row and isinstance(latest_portfolio_row['portfolio_data'], str):
+            try:
+                latest_portfolio_data = json.loads(latest_portfolio_row['portfolio_data'])
+                if isinstance(latest_portfolio_data, dict):
+                     logging.info(f"Successfully extracted latest portfolio data (parsed from string): {latest_portfolio_data}")
+                else:
+                     logging.warning(f"Parsed 'portfolio_data' string is not a dictionary. Type: {type(latest_portfolio_data)}")
+                     latest_portfolio_data = None # Reset if not dict
+            except json.JSONDecodeError:
+                 logging.warning(f"Failed to parse 'portfolio_data' string: {latest_portfolio_row['portfolio_data']}")
+                 latest_portfolio_data = None
         else:
-            logging.warning(f"Latest portfolio log entry's 'portfolio_data' is not a dictionary. Type: {type(portfolio_data_content)}")
+             # Log cases where 'portfolio_data' key exists but is not dict/str, or key is missing entirely
+             portfolio_data_content = latest_portfolio_row.get('portfolio_data', '[KEY MISSING]')
+             logging.warning(f"Latest portfolio log entry's 'portfolio_data' key is missing or not a dictionary/string. Found: {type(portfolio_data_content)}")
+             latest_portfolio_data = None # Ensure it's None if not usable
+
     else:
-        logging.warning("'portfolio_data' column not found in filtered portfolio logs.")
+         logging.warning("No log entries found with role 'portfolio_summary' after filtering.")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(label="Total Portfolio Value (USDT)", value=f"${latest_portfolio_data.get('total_portfolio_value_usdt', 0.0):.2f}" if latest_portfolio_data else "N/A")
+        st.metric(label="Available USDT", value=f"${latest_portfolio_data.get('usdt_balance', 0.0):.2f}" if latest_portfolio_data else "N/A")
+        st.metric(label="Positions Held", value=f"{latest_portfolio_data.get('num_positions', 0)} / {latest_portfolio_data.get('max_positions', 'N/A')}" if latest_portfolio_data else "N/A")
+
+    with col2:
+        st.write("**Portfolio Composition (USDT Value)**")
+        if latest_portfolio_data:
+            holdings = latest_portfolio_data.get('holdings_value_usdt', {})
+            usdt_balance = latest_portfolio_data.get('usdt_balance', 0.0)
+            plot_data = holdings.copy()
+            if usdt_balance > 0:
+                plot_data['Available USDT'] = usdt_balance
+            if plot_data:
+                labels = list(plot_data.keys())
+                values = list(plot_data.values())
+                fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3, textinfo='percent+label', pull=[0.05 if label=='Available USDT' else 0 for label in labels])])
+                fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=250)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No holdings or USDT balance to display in chart.")
+        else:
+            st.info("Portfolio data not available for chart.")
 else:
-     logging.warning("No log entries found with role 'portfolio_summary'. Cannot display portfolio overview.")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.metric(label="Total Portfolio Value (USDT)", value=f"${latest_portfolio_data.get('total_portfolio_value_usdt', 0.0):.2f}" if latest_portfolio_data else "N/A")
-    st.metric(label="Available USDT", value=f"${latest_portfolio_data.get('usdt_balance', 0.0):.2f}" if latest_portfolio_data else "N/A")
-    st.metric(label="Positions Held", value=f"{latest_portfolio_data.get('num_positions', 0)} / {latest_portfolio_data.get('max_positions', 'N/A')}" if latest_portfolio_data else "N/A")
-
-with col2:
-    st.write("**Portfolio Composition (USDT Value)**")
-    if latest_portfolio_data:
-        holdings = latest_portfolio_data.get('holdings_value_usdt', {})
-        usdt_balance = latest_portfolio_data.get('usdt_balance', 0.0)
-        plot_data = holdings.copy()
-        if usdt_balance > 0:
-            plot_data['Available USDT'] = usdt_balance
-        if plot_data:
-            labels = list(plot_data.keys())
-            values = list(plot_data.values())
-            fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3, textinfo='percent+label', pull=[0.05 if label=='Available USDT' else 0 for label in labels])])
-            fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=250)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No holdings or USDT balance to display in chart.")
-    else:
+    # Display message indicating data is unavailable
+    st.info(f"Portfolio overview data from {PRUD_LOG_FILE} is unavailable due to loading issues.")
+    # Display placeholder metrics
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="Total Portfolio Value (USDT)", value="N/A")
+        st.metric(label="Available USDT", value="N/A")
+        st.metric(label="Positions Held", value="N/A")
+    with col2:
+        st.write("**Portfolio Composition (USDT Value)**")
         st.info("Portfolio data not available for chart.")
 
 st.divider() # 시각화와 로그 사이에 구분선 추가
 
 # --- 총 포트폴리오 가치 추이 --- #
 st.subheader("Total Portfolio Value Over Time")
-if not portfolio_logs.empty:
-    plot_data = []
-    for index, row in portfolio_logs.iterrows():
-        if isinstance(row.get('portfolio_data'), dict):
-            plot_data.append({
-                'timestamp': row['timestamp'],
-                'value': row['portfolio_data'].get('total_portfolio_value_usdt')
-            })
-    if plot_data:
-        portfolio_value_df = pd.DataFrame(plot_data)
-        portfolio_value_df.dropna(subset=['value'], inplace=True)
-        if not portfolio_value_df.empty and pd.api.types.is_datetime64_any_dtype(portfolio_value_df['timestamp']):
-            portfolio_value_df.set_index('timestamp', inplace=True)
-            st.line_chart(portfolio_value_df[['value']], use_container_width=True)
-        else:
-            st.info("Not enough valid portfolio value data to plot.")
-    else:
-        st.info("Could not extract valid portfolio value data from logs.")
+if prud_df_valid:
+     # Re-filter prud_df here to get logs for the trend chart
+     portfolio_logs_for_trend = prud_df[prud_df['role'] == 'portfolio_summary'].copy() # Use .copy()
+
+     if not portfolio_logs_for_trend.empty:
+         plot_data = []
+         for index, row in portfolio_logs_for_trend.iterrows():
+             portfolio_data_dict = None
+             # Try to get the dict, handling string case
+             if 'portfolio_data' in row and isinstance(row.get('portfolio_data'), dict):
+                 portfolio_data_dict = row['portfolio_data']
+             elif 'portfolio_data' in row and isinstance(row.get('portfolio_data'), str):
+                 try:
+                     parsed_dict = json.loads(row['portfolio_data'])
+                     if isinstance(parsed_dict, dict):
+                         portfolio_data_dict = parsed_dict
+                 except json.JSONDecodeError:
+                     pass # Skip if string parsing fails
+
+             if portfolio_data_dict:
+                 plot_data.append({
+                     'timestamp': row['timestamp'],
+                     'value': portfolio_data_dict.get('total_portfolio_value_usdt')
+                 })
+
+         if plot_data:
+             portfolio_value_df = pd.DataFrame(plot_data)
+             portfolio_value_df.dropna(subset=['value'], inplace=True)
+             if not portfolio_value_df.empty and pd.api.types.is_datetime64_any_dtype(portfolio_value_df['timestamp']):
+                 portfolio_value_df.set_index('timestamp', inplace=True)
+                 st.line_chart(portfolio_value_df[['value']], use_container_width=True)
+             else:
+                 st.info("Not enough valid portfolio value data to plot after processing.")
+         else:
+             st.info("Could not extract valid portfolio value data from logs for plotting.")
+     else:
+         st.info("No 'portfolio_summary' logs found for plotting.")
 else:
-    st.info("No portfolio history data found for plotting.")
+     st.info(f"Portfolio history data from {PRUD_LOG_FILE} is unavailable.")
 
 st.divider() # 시각화와 로그 사이에 구분선 추가
 
@@ -345,9 +398,13 @@ else:
 # --- Prudence AI 로그 표시 수정 --- #
 st.subheader("🤔 Prudence AI Log")
 st.caption(f"Displaying data from {PRUD_LOG_FILE}")
-if not prud_df.empty:
+
+# Check validity again for this section
+if prud_df_valid:
     # --- Prudence 제안 로그 표시 (expander 사용) --- #
+    # Filter logs that are NOT portfolio summaries
     prudence_suggestion_logs = prud_df[prud_df['role'] != 'portfolio_summary']
+
     if not prudence_suggestion_logs.empty:
          # Display latest few prudence suggestions directly? Or keep all in expanders.
          # For now, keep all in expanders for consistency.
@@ -370,10 +427,9 @@ if not prud_df.empty:
                  st.write(f"**Reason:**")
                  st.markdown(str(row.get('reason', '*No reason provided*'))) # Get directly from flattened row
     else:
-         st.info("No Prudence suggestion logs found.")
-
+         st.info("No Prudence suggestion logs found (excluding portfolio summaries).")
 else:
-    st.warning(f"No Prudence AI log data found or failed to load from {PRUD_LOG_FILE}.")
+    st.warning(f"Could not display Prudence AI logs due to loading issues with {PRUD_LOG_FILE}.")
 
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
