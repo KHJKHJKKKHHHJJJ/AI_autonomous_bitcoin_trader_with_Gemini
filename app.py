@@ -86,19 +86,42 @@ def load_log_data(log_file_path):
             # For now, return empty to avoid downstream errors.
             return pd.DataFrame()
 
-        # Convert timestamp column
+        # Convert timestamp column first, handling errors
         if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
-             # Try parsing with timezone awareness if possible
-             try:
-                 df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors='coerce', utc=True).dt.tz_convert(KST)
-             except Exception: # Fallback to naive conversion
-                  df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors='coerce')
+             df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors='coerce') # Coerce errors to NaT
 
+        # Standardize timezone to KST
+        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]): # Check if conversion was successful
+            if df[timestamp_col].dt.tz is None:
+                # Naive timestamps: Assume KST and localize
+                logging.debug(f"Localizing naive timestamps in {log_file_path} to KST.")
+                try:
+                    df[timestamp_col] = df[timestamp_col].dt.tz_localize(KST, ambiguous='infer')
+                except Exception as e_loc:
+                    logging.error(f"Error localizing naive timestamp in {log_file_path}: {e_loc}. Setting to NaT.")
+                    # Manually set problematic rows to NaT if needed, though coerce should handle most
+            else:
+                # Aware timestamps: Convert to KST
+                logging.debug(f"Converting aware timestamps in {log_file_path} to KST.")
+                try:
+                    df[timestamp_col] = df[timestamp_col].dt.tz_convert(KST)
+                except Exception as e_conv:
+                    logging.error(f"Error converting aware timestamp in {log_file_path}: {e_conv}. Setting to NaT.")
+                    # Find rows that failed and set to NaT, or rely on errors='coerce' earlier
+
+        # Log rows with NaT timestamps before dropping
+        nat_timestamps = df[pd.isna(df[timestamp_col])]
+        if not nat_timestamps.empty:
+            logging.warning(f"Dropping {len(nat_timestamps)} rows due to NaT in timestamp column in {log_file_path}:")
+            # Log details of the first few NaT rows for inspection
+            for i, row in nat_timestamps.head(3).iterrows():
+                 try: logging.warning(f"  - Row index {i}, Original data sample: {row.to_dict()}") # Log full row dict if possible
+                 except Exception: logging.warning(f"  - Row index {i}, partial data: {row.get('role', 'N/A')}, {row.get('log_time') or row.get('timestamp')}")
 
         df.dropna(subset=[timestamp_col], inplace=True)
 
         if df.empty:
-             logging.warning(f"No valid timestamp data found in {log_file_path} after cleaning.")
+             logging.warning(f"No valid timestamp data found in {log_file_path} after cleaning and timezone standardization.")
              return pd.DataFrame()
 
         df = df.sort_values(by=timestamp_col, ascending=False)
