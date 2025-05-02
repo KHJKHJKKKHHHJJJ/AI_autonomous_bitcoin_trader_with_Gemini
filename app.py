@@ -18,35 +18,43 @@ MAX_LOGS_DISPLAY = 10 # 채팅 로그 표시 개수 제한
 
 # --- Data Loading Function ---
 @st.cache_data(ttl=60)
-def load_log_data(log_file_path, nested_key):
+def load_log_data(log_file_path):
     """Loads and processes log data from a specified JSON Lines file."""
     processed_records = []
     logging.info(f"Attempting to load log data from: {log_file_path}")
+
+    # Determine potential nested keys based on the file path
+    potential_nested_keys = []
+    if log_file_path == PRUD_LOG_FILE:
+        potential_nested_keys = ['prudence_data', 'portfolio_data']
+    elif log_file_path == BIT_LOG_FILE:
+        potential_nested_keys = ['trade_decision']
+
     try:
         with open(log_file_path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
                 try:
                     record = json.loads(line.strip())
-                    final_record = record.copy() # 먼저 현재 레코드로 초기화
+                    final_record = record.copy() # Start with the original record
 
-                    # Check if the specified nested key exists and flatten it
-                    if nested_key and nested_key in record and isinstance(record.get(nested_key), dict):
-                        # Keep a copy of the nested data before flattening
-                        original_nested_data = record[nested_key]
-                        try:
-                            flat_nested = json_normalize(original_nested_data).to_dict(orient='records')[0]
-                            # Modify final_record: remove original nested, add flattened
-                            del final_record[nested_key]
-                            final_record.update(flat_nested)
-                            # logging.debug(f"Flattened keys for {nested_key}: {list(flat_nested.keys())}")
-                        except IndexError:
-                            logging.warning(f"json_normalize produced empty result for line {line_num} in {log_file_path}. Nested data: {original_nested_data}")
-                            # Keep original nested if flatten fails - final_record already holds it
-                    elif nested_key and nested_key not in record:
-                        logging.debug(f"Nested key '{nested_key}' not found in line {line_num} of {log_file_path}. Keeping original record structure.")
-                        # No modification needed, final_record holds the current record
+                    # Try flattening known nested keys for this file type
+                    for key_to_flatten in potential_nested_keys:
+                         if key_to_flatten in record and isinstance(record.get(key_to_flatten), dict):
+                             original_nested_data = record[key_to_flatten]
+                             try:
+                                 flat_nested = json_normalize(original_nested_data).to_dict(orient='records')[0]
+                                 # Update final_record: remove original nested, add flattened
+                                 if key_to_flatten in final_record: # Make sure key exists before deleting
+                                     del final_record[key_to_flatten]
+                                 final_record.update(flat_nested)
+                                 logging.debug(f"Successfully flattened key '{key_to_flatten}' in line {line_num} of {log_file_path}")
+                             except IndexError:
+                                 logging.warning(f"json_normalize produced empty result for key '{key_to_flatten}' in line {line_num} of {log_file_path}. Nested data: {original_nested_data}")
+                             except Exception as e_flat:
+                                 logging.warning(f"Error flattening key '{key_to_flatten}' in line {line_num} of {log_file_path}: {e_flat}")
 
-                    processed_records.append(final_record) # Append the (potentially modified) record for this line
+                    processed_records.append(final_record) # Append the processed record for this line
+
                 except json.JSONDecodeError as e:
                     logging.warning(f"Skipping invalid JSON line #{line_num} in {log_file_path}: {e}")
                 except Exception as e_proc:
@@ -137,7 +145,7 @@ st.set_page_config(layout="wide")
 st.title("📊 AI Bitcoin Trader Dashboard")
 
 # Load data from both log files
-prud_df = load_log_data(PRUD_LOG_FILE, nested_key='prudence_data') # Flatten 'prudence_data'
+prud_df = load_log_data(PRUD_LOG_FILE) # nested_key 인자 제거
 # Add logging immediately after loading prud_df
 if not prud_df.empty and 'role' in prud_df.columns:
     logging.info(f"Unique roles found in prud_df immediately after loading: {prud_df['role'].unique().tolist()}")
@@ -146,13 +154,13 @@ elif prud_df.empty:
 else: # Not empty, but no 'role' column
     logging.warning("prud_df loaded, but 'role' column is missing.")
 
-bit_df = load_log_data(BIT_LOG_FILE, nested_key='trade_decision') # Flatten 'trade_decision'
+bit_df = load_log_data(BIT_LOG_FILE) # nested_key 인자 제거
 
 # --- Visualizations (Moved Up) --- #
 st.subheader("📈 Portfolio Overview")
 
 # 최신 포트폴리오 데이터 추출 (Prudence 로그에서)
-portfolio_logs = prud_df[prud_df['role'] == 'portfolio_summary'].copy()
+portfolio_logs = prud_df[prud_df['role'] == 'portfolio_summary']
 logging.info(f"Found {len(portfolio_logs)} portfolio log entries.") # 디버깅 로그 추가
 latest_portfolio_data = None
 if not portfolio_logs.empty:
