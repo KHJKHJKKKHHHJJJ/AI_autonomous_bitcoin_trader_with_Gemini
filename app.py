@@ -37,6 +37,42 @@ def load_log_data(log_file_path):
                     record = json.loads(line.strip())
                     final_record = record.copy() # Start with the original record
 
+                    # --- Timestamp Pre-processing (Parse before DataFrame creation) ---
+                    ts_val = None
+                    ts_key = None
+                    if 'log_time' in record:
+                        ts_key = 'log_time'
+                        ts_val = record.get('log_time')
+                    elif 'timestamp' in record:
+                        ts_key = 'timestamp'
+                        ts_val = record.get('timestamp')
+
+                    parsed_dt = pd.NaT # Default to NaT
+                    if ts_val:
+                        try:
+                            # Attempt direct ISO format parsing first (handles +HH:MM and no offset)
+                            parsed_dt = datetime.fromisoformat(str(ts_val)) # Ensure it's string
+                            logging.debug(f"Line {line_num}: Parsed '{ts_val}' using datetime.fromisoformat.")
+                        except ValueError:
+                            try:
+                                # Fallback to pandas to_datetime for potentially different formats
+                                # Apply errors='coerce' here for the fallback
+                                parsed_dt = pd.to_datetime(ts_val, errors='coerce')
+                                if pd.isna(parsed_dt):
+                                     logging.warning(f"Line {line_num}: Fallback pd.to_datetime resulted in NaT for '{ts_val}'.")
+                                else:
+                                     logging.debug(f"Line {line_num}: Parsed '{ts_val}' using fallback pd.to_datetime.")
+                            except Exception as e_parse:
+                                logging.warning(f"Line {line_num}: Failed to parse timestamp '{ts_val}' with fallback: {e_parse}. Will be NaT.")
+                                # parsed_dt remains pd.NaT
+
+                    # Store the parsed datetime object (or NaT) back into the record
+                    # using a consistent key 'timestamp'
+                    if ts_key and ts_key != 'timestamp':
+                         if ts_key in final_record: del final_record[ts_key] # Remove original key if different
+                    final_record['timestamp'] = parsed_dt
+                    # --- End Timestamp Pre-processing ---
+
                     # Try flattening known nested keys for this file type
                     for key_to_flatten in potential_nested_keys:
                          if key_to_flatten in record and isinstance(record.get(key_to_flatten), dict):
@@ -70,46 +106,44 @@ def load_log_data(log_file_path):
         logging.debug(f"Initial DataFrame columns for {log_file_path}: {df.columns.tolist()}") # Debug: Show columns
 
         # --- Timestamp Standardization ---
-        timestamp_col = None
-        # Prioritize 'log_time' as it seems more consistent across logs
-        if 'log_time' in df.columns:
-            df.rename(columns={'log_time': 'timestamp'}, inplace=True)
-            timestamp_col = 'timestamp'
-            if 'timestamp' in df.columns and 'log_time' in df.columns and df['timestamp'].equals(df['log_time']):
-                 try: df.drop(columns=['log_time'], inplace=True, errors='ignore')
-                 except KeyError: pass
-        elif 'timestamp' in df.columns:
-             timestamp_col = 'timestamp'
-        else:
-            logging.error(f"Could not find a suitable timestamp column ('timestamp' or 'log_time') in {log_file_path}.")
-            # Attempt to add a dummy timestamp if none exists? Or return empty.
-            # For now, return empty to avoid downstream errors.
-            return pd.DataFrame()
+        timestamp_col = 'timestamp'
+        # Check if timestamp column exists and has datetime objects after processing lines
+        if timestamp_col not in df.columns or df[timestamp_col].isnull().all():
+             logging.error(f"No valid timestamp data could be parsed or found in {log_file_path} after processing all lines.")
+             return pd.DataFrame()
 
-        # Convert timestamp column first, handling errors
+        # Convert the column to datetime dtype if it's not already (might be object type if NaTs existed)
+        # This is crucial before using .dt accessor
         if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
-             df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors='coerce') # Coerce errors to NaT
+             df[timestamp_col] = pd.to_datetime(df[timestamp_col]) # Convert object column with datetimes/NaT to proper dtype
 
-        # Standardize timezone to KST
-        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]): # Check if conversion was successful
-            if df[timestamp_col].dt.tz is None:
-                # Naive timestamps: Assume KST and localize
-                logging.debug(f"Localizing naive timestamps in {log_file_path} to KST.")
+        # --- Timezone Standardization (applied to datetime objects) ---
+        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]): # Check dtype AGAIN after potential conversion
+            # Localize naive timestamps (those without timezone info after parsing)
+            naive_mask = df[timestamp_col].dt.tz.isnull()
+            if naive_mask.any():
+                logging.debug(f"Localizing {naive_mask.sum()} naive timestamps in {log_file_path} to KST.")
                 try:
-                    df[timestamp_col] = df[timestamp_col].dt.tz_localize(KST, ambiguous='infer')
+                    # Use .loc to avoid SettingWithCopyWarning
+                    df.loc[naive_mask, timestamp_col] = df.loc[naive_mask, timestamp_col].dt.tz_localize(KST, ambiguous='infer')
                 except Exception as e_loc:
-                    logging.error(f"Error localizing naive timestamp in {log_file_path}: {e_loc}. Setting to NaT.")
-                    # Manually set problematic rows to NaT if needed, though coerce should handle most
-            else:
-                # Aware timestamps: Convert to KST
-                logging.debug(f"Converting aware timestamps in {log_file_path} to KST.")
-                try:
-                    df[timestamp_col] = df[timestamp_col].dt.tz_convert(KST)
-                except Exception as e_conv:
-                    logging.error(f"Error converting aware timestamp in {log_file_path}: {e_conv}. Setting to NaT.")
-                    # Find rows that failed and set to NaT, or rely on errors='coerce' earlier
+                    logging.error(f"Error localizing naive timestamps in {log_file_path}: {e_loc}. Problematic rows might become NaT.")
+                    # Handle potential errors, maybe set to NaT manually if needed
 
-        # Log rows with NaT timestamps before dropping
+            # Convert aware timestamps (those with timezone info after parsing) to KST
+            aware_mask = df[timestamp_col].dt.tz.notnull()
+            if aware_mask.any():
+                logging.debug(f"Converting {aware_mask.sum()} aware timestamps in {log_file_path} to KST.")
+                try:
+                    # Use .loc to avoid SettingWithCopyWarning
+                    df.loc[aware_mask, timestamp_col] = df.loc[aware_mask, timestamp_col].dt.tz_convert(KST)
+                except Exception as e_conv:
+                    logging.error(f"Error converting aware timestamps in {log_file_path}: {e_conv}. Problematic rows might become NaT.")
+
+        else:
+             logging.warning(f"Timestamp column '{timestamp_col}' in {log_file_path} is not of datetime type after parsing attempts and final conversion.")
+
+        # Log rows with NaT timestamps before dropping (should be fewer/none now)
         nat_timestamps = df[pd.isna(df[timestamp_col])]
         if not nat_timestamps.empty:
             logging.warning(f"Dropping {len(nat_timestamps)} rows due to NaT in timestamp column in {log_file_path}:")
