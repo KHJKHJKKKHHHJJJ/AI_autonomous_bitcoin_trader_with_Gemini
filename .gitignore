@@ -1,0 +1,15 @@
+# Environments
+.env
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Log files
+*.jsonl
+
+# IDE/Editor specific
+.vscode/
+.idea/ 

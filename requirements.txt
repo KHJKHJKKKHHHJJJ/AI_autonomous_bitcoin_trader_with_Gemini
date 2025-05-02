@@ -1,9 +1,10 @@
-google-generativeai
-numpy==1.26.3
-pandas
-httplib2
-bs4
-pandas_ta
+google-generativeai>=0.3.0
+requests
 python-dotenv
-streamlit
+pandas
+pandas-ta
 python-telegram-bot
+python-binance
+pytz
+streamlit
+plotly
