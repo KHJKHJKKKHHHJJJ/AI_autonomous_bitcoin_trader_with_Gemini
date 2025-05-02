@@ -105,67 +105,45 @@ def load_log_data(log_file_path):
         logging.info(f"Successfully created DataFrame from {log_file_path} with {len(df)} records.")
         logging.debug(f"Initial DataFrame columns for {log_file_path}: {df.columns.tolist()}") # Debug: Show columns
 
-        # --- Timestamp Standardization ---
+        # --- Timestamp Standardization (Revised) ---
         timestamp_col = 'timestamp'
-        # Check if timestamp column exists and has datetime objects after processing lines
-        if timestamp_col not in df.columns or df[timestamp_col].isnull().all():
-             logging.error(f"No valid timestamp data could be parsed or found in {log_file_path} after processing all lines.")
+
+        # Check if timestamp column exists
+        if timestamp_col not in df.columns:
+             logging.error(f"Timestamp column '{timestamp_col}' not found in {log_file_path} after processing lines.")
              return pd.DataFrame()
 
-        # --- Timezone Standardization (applied to datetime objects) ---
-        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]) or df[timestamp_col].apply(lambda x: isinstance(x, datetime)).all(): # Check dtype OR if all are datetime objects
-            # Localize naive timestamps (those without timezone info after parsing)
-            naive_mask = df[timestamp_col].dt.tz.isna()
-            if naive_mask.any():
-                logging.debug(f"Localizing {naive_mask.sum()} naive timestamps in {log_file_path} to KST.")
-                try:
-                    # Use .loc to avoid SettingWithCopyWarning
-                    df.loc[naive_mask, timestamp_col] = df.loc[naive_mask, timestamp_col].dt.tz_localize(KST, ambiguous='infer')
-                except Exception as e_loc:
-                    logging.error(f"Error localizing naive timestamps in {log_file_path}: {e_loc}. Problematic rows might become NaT.")
-                    # Handle potential errors, maybe set to NaT manually if needed
+        # 1. Convert to datetime objects with UTC timezone, coercing errors
+        logging.info(f"Converting '{timestamp_col}' to UTC datetime objects for {log_file_path}...")
+        df[timestamp_col] = pd.to_datetime(df[timestamp_col], utc=True, errors='coerce')
 
-            # Convert aware timestamps (those with timezone info after parsing) to KST
-            aware_mask = df[timestamp_col].dt.tz.notna()
-            if aware_mask.any():
-                logging.debug(f"Converting {aware_mask.sum()} aware timestamps in {log_file_path} to KST.")
-                try:
-                    # Use .loc to avoid SettingWithCopyWarning
-                    df.loc[aware_mask, timestamp_col] = df.loc[aware_mask, timestamp_col].dt.tz_convert(KST)
-                except Exception as e_conv:
-                    logging.error(f"Error converting aware timestamps in {log_file_path}: {e_conv}. Problematic rows might become NaT.")
-
-        else:
-             logging.warning(f"Timestamp column '{timestamp_col}' in {log_file_path} is not of datetime type after parsing attempts.")
-
-        # Log rows with NaT timestamps before dropping (should be fewer/none now)
+        # 2. Log and drop rows where conversion failed (NaT)
         nat_timestamps = df[pd.isna(df[timestamp_col])]
         if not nat_timestamps.empty:
-            logging.warning(f"Dropping {len(nat_timestamps)} rows due to NaT in timestamp column in {log_file_path}:")
-            # Log details of the first few NaT rows for inspection
+            logging.warning(f"Dropping {len(nat_timestamps)} rows due to NaT in timestamp column after UTC conversion in {log_file_path}:")
             for i, row in nat_timestamps.head(3).iterrows():
-                 try: logging.warning(f"  - Row index {i}, Original data sample: {row.to_dict()}") # Log full row dict if possible
-                 except Exception: logging.warning(f"  - Row index {i}, partial data: {row.get('role', 'N/A')}, {row.get('log_time') or row.get('timestamp')}")
-
+                 try: logging.warning(f"  - Row index {i}, Original data sample: {row.to_dict()}")
+                 except Exception: logging.warning(f"  - Row index {i}, partial data: {row.get('role', 'N/A')}, raw timestamp: {processed_records[i].get('timestamp') if i < len(processed_records) else 'N/A'}") # Try to get original raw timestamp
         df.dropna(subset=[timestamp_col], inplace=True)
 
+        # Check if empty after dropping NaTs
         if df.empty:
-             logging.warning(f"No valid timestamp data found in {log_file_path} after cleaning and timezone standardization.")
+             logging.warning(f"No valid timestamp data remains in {log_file_path} after UTC conversion and NaT drop.")
              return pd.DataFrame()
 
-        df = df.sort_values(by=timestamp_col, ascending=False)
-        # --- End Timestamp Standardization ---
+        # 3. Convert from UTC to KST
+        logging.info(f"Converting '{timestamp_col}' from UTC to KST for {log_file_path}...")
+        try:
+             df[timestamp_col] = df[timestamp_col].dt.tz_convert(KST)
+        except Exception as e_conv:
+              logging.error(f"Error converting timestamps from UTC to KST in {log_file_path}: {e_conv}")
+              # Decide how to handle this - return empty or keep UTC? For now, return empty.
+              return pd.DataFrame()
 
-        # --- Column Renaming (REMOVED specific logic for nested keys) ---
-        # rename_map = {}
-        # if nested_key == 'suggestion_data': # Now 'trade_decision'
-        #     # No automatic renaming needed if display logic handles keys directly
-        #     pass
-        # elif nested_key == 'prudence_data':
-        #     # No automatic renaming needed if display logic handles keys directly
-        #     pass
-        # df.rename(columns=rename_map, inplace=True)
-        # --- End Column Renaming ---
+        # 4. Sort by timestamp descending
+        df = df.sort_values(by=timestamp_col, ascending=False)
+        logging.info(f"Successfully processed timestamps for {log_file_path}. Final dtype: {df[timestamp_col].dtype}")
+        # --- End Timestamp Standardization ---
 
         # Ensure common numeric types after potential flattening
         numeric_cols_to_check = ['confidence', 'latest_rsi', 'btc_balance', 'quote_balance', 'prudence_index']
@@ -221,53 +199,50 @@ if prud_df_valid:
     # 최신 포트폴리오 데이터 추출 (Prudence 로그에서)
     portfolio_logs = prud_df[prud_df['role'] == 'portfolio_summary'] # This line is now safe
     logging.info(f"Found {len(portfolio_logs)} portfolio log entries.") # 디버깅 로그 추가
-    latest_portfolio_data = None
+    latest_portfolio_row = None # Initialize
     if not portfolio_logs.empty:
         logging.info(f"Columns in portfolio_logs: {portfolio_logs.columns.tolist()}") # 디버깅 로그 추가
         # Use .iloc[0] to get the Series for the latest log
         latest_portfolio_row = portfolio_logs.iloc[0]
         logging.info(f"Latest portfolio log row raw data: {latest_portfolio_row.to_dict()}") # 디버깅 로그 추가
-
-        # Check if 'portfolio_data' column EXISTS in the filtered logs (it might be missing if flattening failed for this specific log type)
-        if 'portfolio_data' in latest_portfolio_row and isinstance(latest_portfolio_row['portfolio_data'], dict):
-             latest_portfolio_data = latest_portfolio_row['portfolio_data']
-             logging.info(f"Successfully extracted latest portfolio data: {latest_portfolio_data}") # 디버깅 로그 추가
-        # Handle cases where portfolio_data might be a string representation (e.g., from older logs or errors)
-        elif 'portfolio_data' in latest_portfolio_row and isinstance(latest_portfolio_row['portfolio_data'], str):
-            try:
-                latest_portfolio_data = json.loads(latest_portfolio_row['portfolio_data'])
-                if isinstance(latest_portfolio_data, dict):
-                     logging.info(f"Successfully extracted latest portfolio data (parsed from string): {latest_portfolio_data}")
-                else:
-                     logging.warning(f"Parsed 'portfolio_data' string is not a dictionary. Type: {type(latest_portfolio_data)}")
-                     latest_portfolio_data = None # Reset if not dict
-            except json.JSONDecodeError:
-                 logging.warning(f"Failed to parse 'portfolio_data' string: {latest_portfolio_row['portfolio_data']}")
-                 latest_portfolio_data = None
-        else:
-             # Log cases where 'portfolio_data' key exists but is not dict/str, or key is missing entirely
-             portfolio_data_content = latest_portfolio_row.get('portfolio_data', '[KEY MISSING]')
-             logging.warning(f"Latest portfolio log entry's 'portfolio_data' key is missing or not a dictionary/string. Found: {type(portfolio_data_content)}")
-             latest_portfolio_data = None # Ensure it's None if not usable
-
     else:
          logging.warning("No log entries found with role 'portfolio_summary' after filtering.")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.metric(label="Total Portfolio Value (USDT)", value=f"${latest_portfolio_data.get('total_portfolio_value_usdt', 0.0):.2f}" if latest_portfolio_data else "N/A")
-        st.metric(label="Available USDT", value=f"${latest_portfolio_data.get('usdt_balance', 0.0):.2f}" if latest_portfolio_data else "N/A")
-        st.metric(label="Positions Held", value=f"{latest_portfolio_data.get('num_positions', 0)} / {latest_portfolio_data.get('max_positions', 'N/A')}" if latest_portfolio_data else "N/A")
+        # Access flattened data directly from the row (Series)
+        total_value = latest_portfolio_row.get('total_portfolio_value_usdt', 0.0) if latest_portfolio_row is not None else 0.0
+        usdt_balance_val = latest_portfolio_row.get('usdt_balance', 0.0) if latest_portfolio_row is not None else 0.0
+        num_positions = latest_portfolio_row.get('num_positions', 0) if latest_portfolio_row is not None else 0
+        max_positions = latest_portfolio_row.get('max_positions', 'N/A') if latest_portfolio_row is not None else 'N/A'
+
+        st.metric(label="Total Portfolio Value (USDT)", value=f"${total_value:.2f}" if total_value is not None else "N/A")
+        st.metric(label="Available USDT", value=f"${usdt_balance_val:.2f}" if usdt_balance_val is not None else "N/A")
+        st.metric(label="Positions Held", value=f"{num_positions} / {max_positions}" if num_positions is not None else "N/A")
 
     with col2:
         st.write("**Portfolio Composition (USDT Value)**")
-        if latest_portfolio_data:
-            holdings = latest_portfolio_data.get('holdings_value_usdt', {})
-            usdt_balance = latest_portfolio_data.get('usdt_balance', 0.0)
+        if latest_portfolio_row is not None:
+            # Reconstruct holdings from flattened columns
+            holdings = {}
+            prefix = 'holdings_value_usdt.'
+            for col_name in latest_portfolio_row.index:
+                if col_name.startswith(prefix):
+                    # Ensure the value is numeric before adding
+                    value = pd.to_numeric(latest_portfolio_row[col_name], errors='coerce')
+                    if pd.notna(value) and value > 0:
+                         symbol = col_name[len(prefix):] # Extract symbol (e.g., ADA)
+                         holdings[symbol] = value
+
+            usdt_balance_chart = pd.to_numeric(latest_portfolio_row.get('usdt_balance', 0.0), errors='coerce')
+            # Ensure usdt_balance_chart is not NaN before comparison
+            if pd.isna(usdt_balance_chart):
+                 usdt_balance_chart = 0.0
             plot_data = holdings.copy()
-            if usdt_balance > 0:
-                plot_data['Available USDT'] = usdt_balance
+            if usdt_balance_chart > 0:
+                plot_data['Available USDT'] = usdt_balance_chart
+
             if plot_data:
                 labels = list(plot_data.keys())
                 values = list(plot_data.values())
@@ -300,30 +275,25 @@ if prud_df_valid:
      portfolio_logs_for_trend = prud_df[prud_df['role'] == 'portfolio_summary'].copy() # Use .copy()
 
      if not portfolio_logs_for_trend.empty:
-         plot_data = []
+         plot_data_trend = [] # Use different variable name
          for index, row in portfolio_logs_for_trend.iterrows():
-             portfolio_data_dict = None
-             # Try to get the dict, handling string case
-             if 'portfolio_data' in row and isinstance(row.get('portfolio_data'), dict):
-                 portfolio_data_dict = row['portfolio_data']
-             elif 'portfolio_data' in row and isinstance(row.get('portfolio_data'), str):
-                 try:
-                     parsed_dict = json.loads(row['portfolio_data'])
-                     if isinstance(parsed_dict, dict):
-                         portfolio_data_dict = parsed_dict
-                 except json.JSONDecodeError:
-                     pass # Skip if string parsing fails
-
-             if portfolio_data_dict:
-                 plot_data.append({
-                     'timestamp': row['timestamp'],
-                     'value': portfolio_data_dict.get('total_portfolio_value_usdt')
+             # Access flattened value directly and ensure it's numeric
+             value = pd.to_numeric(row.get('total_portfolio_value_usdt'), errors='coerce')
+             timestamp = row.get('timestamp') # Get timestamp
+             # Ensure both value and timestamp are valid
+             if pd.notna(value) and pd.notna(timestamp):
+                 plot_data_trend.append({
+                     'timestamp': timestamp,
+                     'value': value
                  })
 
-         if plot_data:
-             portfolio_value_df = pd.DataFrame(plot_data)
-             portfolio_value_df.dropna(subset=['value'], inplace=True)
-             if not portfolio_value_df.empty and pd.api.types.is_datetime64_any_dtype(portfolio_value_df['timestamp']):
+         if plot_data_trend:
+             portfolio_value_df = pd.DataFrame(plot_data_trend)
+             # Check again if DataFrame is valid and has correct types before plotting
+             if not portfolio_value_df.empty and \
+                'timestamp' in portfolio_value_df.columns and \
+                'value' in portfolio_value_df.columns and \
+                pd.api.types.is_datetime64_any_dtype(portfolio_value_df['timestamp']):
                  portfolio_value_df.set_index('timestamp', inplace=True)
                  st.line_chart(portfolio_value_df[['value']], use_container_width=True)
              else:
