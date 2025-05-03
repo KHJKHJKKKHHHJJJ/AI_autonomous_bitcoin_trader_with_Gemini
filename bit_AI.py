@@ -33,6 +33,8 @@ from binance.client import Client # Import Binance Client
 from binance.enums import * # Import enums for order types, sides etc.
 import pytz # For timezone conversion
 
+from decimal import Decimal, ROUND_DOWN
+
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -685,10 +687,6 @@ def send_telegram_message(text):
     except requests.exceptions.RequestException as e:
         logging.error(f"Error sending Telegram message: {e}")
 
-# --- 사용되지 않는 함수 또는 DB 관련 함수 제거 ---
-# def get_today_prudence(): ... (제거)
-# def stop_sell(...): ... (주석 처리 또는 제거)
-
 # --- Signal Determination ---
 def determine_signal(df):
     """Determines Buy/Sell signal based on the latest indicator values."""
@@ -763,20 +761,25 @@ def determine_signal(df):
     return None # No signal
 
 # --- Logging Functions (수정) ---
-def log_trade_decision(decision_data, symbol="UNKNOWN"): # symbol 인자 추가, 기본값 설정
-    """Logs the trading decision data (including symbol) to a JSONL file."""
+def log_trade_decision(decision_data, symbol="UNKNOWN", success=None, error_message=None, order_details=None, side=None, quantity=None):
+    """Logs the trading decision data (including symbol, side, quantity, success, etc.) to TRADE_LOG_FILE."""
     log_entry = {
         "log_time": datetime.datetime.now(KST).isoformat(),
-        "symbol": symbol, # 심볼 추가
-        "trade_decision": decision_data # 기존 결정 데이터
+        "symbol": symbol,
+        "side_attempted": side, # 추가: 시도한 거래 방향
+        "quantity_attempted_or_adjusted": str(quantity) if quantity is not None else None, # 추가: 시도/조정된 수량 (문자열로)
+        "success": success, # 추가: 실행 성공 여부
+        "error_message": error_message, # 추가: 오류 메시지
+        "order_details": order_details, # 추가: 성공 시 주문 상세
+        "trade_decision": decision_data # 기존 AI 결정 데이터
     }
     try:
         with open(TRADE_LOG_FILE, 'a', encoding='utf-8') as f:
-            json.dump(log_entry, f, ensure_ascii=False)
+            json.dump(log_entry, f, ensure_ascii=False, default=str) # Decimal 등 직렬화 위해 default=str 추가
             f.write('\n')
-        logging.info(f"Trade decision for {symbol} logged to {TRADE_LOG_FILE}")
+        logging.info(f"Trade execution log for {symbol} saved to {TRADE_LOG_FILE}")
     except Exception as e:
-        logging.error(f"Failed to log trade decision for {symbol} to {TRADE_LOG_FILE}: {e}")
+        logging.error(f"Failed to log trade execution for {symbol} to {TRADE_LOG_FILE}: {e}")
 
 # --- Main Execution ---
 if __name__ == '__main__':
@@ -857,3 +860,170 @@ if __name__ == '__main__':
     write_chat_log(log_entry)
 
     print("\nScript execution finished.")
+
+# --- Trading AI Class --- #
+class Bit_AI:
+    """Handles Binance API interactions, trade execution, and related logic."""
+    def __init__(self):
+        """Initializes the Bit_AI class, primarily setting up the Binance client."""
+        # Use the module-level binance_client
+        self.client = binance_client
+        if not self.client:
+            logging.error("Bit_AI initialized, but Binance client is not available. Trading functionalities will fail.")
+            # raise ConnectionError("Binance client failed to initialize inside Bit_AI.") # Or raise error
+
+    def _adjust_quantity_to_step(self, quantity, step_size_str):
+        """Adjusts quantity down to the nearest multiple of step_size using Decimal."""
+        # (이전에 추가했던 _adjust_quantity_to_step 함수 내용을 여기에 붙여넣기)
+        try:
+            quantity_d = Decimal(str(quantity))
+            step_size_d = Decimal(step_size_str)
+
+            if step_size_d <= 0:
+                logging.warning(f"Invalid step_size '{step_size_str}' for quantity adjustment. Returning original quantity as string.")
+                return str(quantity) # Return original as string
+
+            # Calculate adjusted quantity by flooring to the step size
+            adjusted_quantity_d = (quantity_d / step_size_d).to_integral_value(rounding=ROUND_DOWN) * step_size_d
+
+            # Determine the number of decimal places from step_size
+            step_tuple = step_size_d.as_tuple()
+            if step_tuple.exponent >= 0: # Integer step size (e.g., 1, 10)
+                decimals = 0
+            else:
+                # Use max(0, ...) to handle cases like step_size='1.0'
+                decimals = abs(step_tuple.exponent)
+                # Refinement: Ensure trailing zeros in step_size are considered
+                if '.' in step_size_str:
+                    decimals = len(step_size_str.split('.')[1])
+
+            # Format the adjusted quantity as a string
+            return "{:.{prec}f}".format(adjusted_quantity_d, prec=decimals)
+        except Exception as e:
+             logging.error(f"Error adjusting quantity {quantity} with step size {step_size_str}: {e}")
+             return None # Indicate failure
+
+    def execute_trade(self, symbol, side, quantity, decision_data):
+        """Executes a trade based on the AI decision, adjusting for LOT_SIZE."""
+        # (이전에 수정했던 execute_trade 함수 내용을 여기에 붙여넣기, self 추가)
+        if not self.client:
+            logging.error("Binance client not available in Bit_AI instance. Cannot execute trade.")
+            self._log_trade_decision(symbol, side, quantity, decision_data, success=False, error_message="Binance client not available")
+            return False
+
+        logging.info(f"Attempting to execute {side} trade for {quantity} {symbol}")
+        adjusted_quantity_str = None # Initialize for logging
+
+        try:
+            # 1. Get Symbol Info for Filters
+            symbol_info = self.client.get_symbol_info(symbol)
+            if not symbol_info:
+                logging.error(f"Could not retrieve symbol info for {symbol}. Aborting trade.")
+                self._log_trade_decision(symbol, side, quantity, decision_data, success=False, error_message="Could not get symbol info")
+                return False
+
+            filters = {f['filterType']: f for f in symbol_info['filters']}
+
+            # 2. Apply LOT_SIZE filter
+            lot_size_filter = filters.get('LOT_SIZE')
+            adjusted_quantity_str = str(quantity) # Default to original if filter not found
+            min_qty_str = "0"
+
+            if lot_size_filter:
+                min_qty_str = lot_size_filter.get('minQty')
+                step_size_str = lot_size_filter.get('stepSize')
+                logging.info(f"Applying LOT_SIZE filter for {symbol}: minQty={min_qty_str}, stepSize={step_size_str}")
+
+                # Use the instance method for adjustment
+                adjusted_quantity_str_maybe = self._adjust_quantity_to_step(quantity, step_size_str)
+                if adjusted_quantity_str_maybe is None:
+                     logging.error(f"Failed to adjust quantity for {symbol}. Aborting trade.")
+                     self._log_trade_decision(symbol, side, quantity, decision_data, success=False, error_message="Quantity adjustment failed")
+                     return False # Adjustment failed
+                adjusted_quantity_str = adjusted_quantity_str_maybe # Assign if adjustment successful
+
+                logging.info(f"Adjusted quantity for {symbol}: {quantity} -> {adjusted_quantity_str}")
+            else:
+                 logging.warning(f"LOT_SIZE filter not found for {symbol}. Using original quantity.")
+
+            # Convert to float/Decimal for comparison AFTER adjustment
+            adjusted_quantity_val = Decimal(adjusted_quantity_str)
+            min_qty_val = Decimal(min_qty_str)
+
+            # Check minQty
+            if adjusted_quantity_val < min_qty_val:
+                 logging.error(f"Adjusted quantity {adjusted_quantity_str} is less than minQty {min_qty_str} for {symbol}. Aborting trade.")
+                 self._log_trade_decision(symbol, side, adjusted_quantity_str, decision_data, success=False, error_message=f"Quantity < minQty ({min_qty_str})")
+                 return False
+
+            # Check if adjusted quantity is zero
+            if adjusted_quantity_val <= 0:
+                logging.error(f"Adjusted quantity is zero or less ({adjusted_quantity_str}) for {symbol}. Aborting trade.")
+                self._log_trade_decision(symbol, side, adjusted_quantity_str, decision_data, success=False, error_message="Adjusted quantity is zero or less")
+                return False
+
+            # TODO: Apply PRICE_FILTER, MIN_NOTIONAL filters
+
+            # 3. Create Order with adjusted quantity
+            order_params = {
+                'symbol': symbol,
+                'side': side.upper(),
+                'type': 'MARKET',
+                'quantity': adjusted_quantity_str # Use adjusted string quantity
+            }
+            logging.info(f"Placing order with parameters: {order_params}")
+            order = self.client.create_order(**order_params)
+
+            logging.info(f"Order placed successfully: {order}")
+            self._log_trade_decision(symbol, side, adjusted_quantity_str, decision_data, success=True, order_details=order)
+            return True
+
+        except BinanceAPIException as e:
+            logging.error(f"Binance API Error executing trade for {symbol}: {e}")
+            self._log_trade_decision(symbol, side, adjusted_quantity_str or str(quantity), decision_data, success=False, error_message=str(e))
+            return False
+        except Exception as e:
+            logging.exception(f"Unexpected error executing trade for {symbol}:")
+            self._log_trade_decision(symbol, side, adjusted_quantity_str or str(quantity), decision_data, success=False, error_message=f"Unexpected error: {e}")
+            return False
+
+    def get_min_order_quantity(self, symbol):
+        """Retrieves the minimum order quantity (minQty) for a given symbol."""
+        # (이전에 추가했던 get_min_order_quantity 함수 내용을 여기에 붙여넣기, self 추가)
+        if not self.client:
+            logging.error("Binance client not available in Bit_AI instance. Cannot get minQty.")
+            return None
+        try:
+            symbol_info = self.client.get_symbol_info(symbol)
+            if not symbol_info:
+                logging.error(f"Could not retrieve symbol info for {symbol} to get minQty.")
+                return None
+
+            filters = {f['filterType']: f for f in symbol_info['filters']}
+            lot_size_filter = filters.get('LOT_SIZE')
+
+            if lot_size_filter:
+                min_qty_str = lot_size_filter.get('minQty')
+                if min_qty_str:
+                    logging.debug(f"Retrieved minQty for {symbol}: {min_qty_str}")
+                    return Decimal(min_qty_str)
+                else:
+                    logging.warning(f"minQty not found within LOT_SIZE filter for {symbol}.")
+                    return None
+            else:
+                 logging.warning(f"LOT_SIZE filter not found for {symbol}. Cannot determine minQty.")
+                 return None
+
+        except BinanceAPIException as e:
+            logging.error(f"Binance API Error retrieving minQty for {symbol}: {e}")
+            return None
+        except Exception as e:
+            logging.exception(f"Unexpected error retrieving minQty for {symbol}:")
+            return None
+
+    def _log_trade_decision(self, symbol, side, quantity, decision_data, success, error_message=None, order_details=None):
+        """Logs the trade execution attempt and outcome."""
+        # This is a placeholder. The actual log_trade_decision is a module-level function.
+        # We call the module-level function here.
+        # Pass the actual quantity attempted or adjusted.
+        log_trade_decision(decision_data=decision_data, symbol=symbol, success=success, error_message=error_message, order_details=order_details, side=side, quantity=quantity)
