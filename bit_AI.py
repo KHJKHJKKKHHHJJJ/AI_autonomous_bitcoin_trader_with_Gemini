@@ -31,6 +31,7 @@ import asyncio
 
 from binance.client import Client # Import Binance Client
 from binance.enums import * # Import enums for order types, sides etc.
+from binance.exceptions import BinanceAPIException # <<< Add this import
 import pytz # For timezone conversion
 
 from decimal import Decimal, ROUND_DOWN
