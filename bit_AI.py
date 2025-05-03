@@ -102,7 +102,7 @@ def gen_bit_model(instruction):
         "response_mime_type": "application/json",
         }
         model = genai.GenerativeModel(
-                model_name="models/gemini-2.5-pro-exp-03-25", # 안정 버전 사용 권장 또는 최신 확인
+                model_name="gemini-2.5-pro-preview-03-25", # 안정 버전 사용 권장 또는 최신 확인
         generation_config=generation_config,
         system_instruction=instruction,
         )

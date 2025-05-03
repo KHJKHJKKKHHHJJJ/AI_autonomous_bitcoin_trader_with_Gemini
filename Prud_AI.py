@@ -72,7 +72,7 @@ def gen_pru_model(instruction):
             "response_mime_type": "application/json",
         }
         model = genai.GenerativeModel(
-            model_name="models/gemini-2.5-pro-exp-03-25", # 모델 이름 확인 및 선택
+            model_name="gemini-2.5-pro-preview-03-25", # 모델 이름 확인 및 선택
             generation_config=generation_config,
             system_instruction=instruction,
         )
