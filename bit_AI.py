@@ -47,7 +47,7 @@ BIT_LOG_FILE = "bit_log.jsonl" # Trading AI 전용 로그 파일
 TRADE_LOG_FILE = "trade_log.jsonl" # Trading AI 결정 로그 파일
 
 # --- Constants ---
-CHART_INTERVAL = '1h' # 1시간 봉
+CHART_INTERVAL = '15m' # 1시간 봉
 DATA_LIMIT = 300 # 가져올 데이터 개수 (RSI, Stochastic 등 계산에 충분하도록)
 SYMBOL = 'BTCUSDT' # 분석할 바이낸스 심볼 (BTC/USDT)
 KST = pytz.timezone('Asia/Seoul') # 한국 시간대
@@ -114,7 +114,7 @@ def gen_bit_model(instruction):
         return None
 
 # --- 데이터 조회 함수 ---
-def get_binance_chart(symbol=SYMBOL, interval=Client.KLINE_INTERVAL_1HOUR, limit=DATA_LIMIT):
+def get_binance_chart(symbol=SYMBOL, interval=Client.KLINE_INTERVAL_5MINUTE, limit=DATA_LIMIT):
     """Fetches historical klines from Binance and returns a processed DataFrame."""
     if not binance_client:
         logging.error("Binance client is not initialized. Cannot fetch chart data.")
