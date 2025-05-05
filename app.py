@@ -6,6 +6,7 @@ import pytz # For timezone handling
 from pandas import json_normalize # Import json_normalize
 import logging # 로깅 추가
 import plotly.graph_objects as go # Plotly 추가
+import numpy as np # Import numpy for array type checking
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -476,37 +477,126 @@ st.divider()
 st.subheader("🤔 Prudence AI Log")
 st.caption(f"Displaying data from {PRUD_LOG_FILE}")
 
-# Check validity again for this section
-if prud_df_valid:
-    # --- Prudence 제안 로그 표시 (expander 사용) --- #
-    # Filter logs that are NOT portfolio summaries
-    prudence_suggestion_logs = prud_df[prud_df['role'] != 'portfolio_summary']
+# Filter controls for Prudence Log
+role_filter_prud = None
+if prud_df_valid and 'role' in prud_df.columns: # Use prud_df_valid flag
+    # Get unique roles from the log, handle potential None/NaN
+    unique_roles_prud = prud_df['role'].dropna().unique().tolist()
+    if unique_roles_prud:
+        role_filter_prud = st.multiselect(
+            'Filter by Log Role(s):',
+            options=sorted(unique_roles_prud),
+            default=None, # Initially show all
+            key='prud_log_role_filter' # Unique key
+        )
 
-    if not prudence_suggestion_logs.empty:
-         # Display latest few prudence suggestions directly? Or keep all in expanders.
-         # For now, keep all in expanders for consistency.
-         for index, row in prudence_suggestion_logs.iterrows():
-             # Use expander to show details for each log entry
-             timestamp_str = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(row.get('timestamp')) else 'Log Entry'
-             expander_title = f"{timestamp_str} - Prudence Suggestion"
-             with st.expander(expander_title):
-                 # Access flattened data directly from the row
-                 st.write(f"**Date:** {row.get('date', 'N/A')}") # Get directly from flattened row
-                 st.write(f"**Suggested Symbols:**")
-                 symbols = row.get('symbols_to_trade', []) # Get directly from flattened row
-                 if isinstance(symbols, list) and symbols: # Ensure it's a list
-                     # Display symbols nicely
-                     st.write(", ".join(symbols))
-                 elif isinstance(symbols, str): # Handle case where it might be a string representation
-                      st.write(symbols)
-                 else:
-                     st.write("*No symbols suggested.*")
-                 st.write(f"**Reason:**")
-                 st.markdown(str(row.get('reason', '*No reason provided*'))) # Get directly from flattened row
+# Apply filter if roles are selected
+filtered_prud_df = prud_df
+if role_filter_prud:
+    if prud_df_valid:
+         # Ensure 'role' column exists before filtering
+         if 'role' in prud_df.columns:
+             filtered_prud_df = prud_df[prud_df['role'].isin(role_filter_prud)]
+             st.caption(f"Showing logs for role(s): {', '.join(role_filter_prud)}")
+         else:
+             st.warning("'role' column missing, cannot filter Prudence logs.")
+             filtered_prud_df = pd.DataFrame() # Prevent error if column missing
     else:
-         st.info("No Prudence suggestion logs found (excluding portfolio summaries).")
-else:
-    st.warning(f"Could not display Prudence AI logs due to loading issues with {PRUD_LOG_FILE}.")
+         filtered_prud_df = pd.DataFrame()
+elif role_filter_prud == []:
+    st.caption("Showing logs for all roles (no filter selected).")
+    if not prud_df_valid:
+         filtered_prud_df = pd.DataFrame()
+else: # No filter selected initially
+     if not prud_df_valid:
+         filtered_prud_df = pd.DataFrame()
+
+# Check validity again and display logs using expanders
+if prud_df_valid and not filtered_prud_df.empty:
+    for index, row in filtered_prud_df.iterrows():
+        # Ensure timestamp exists and is valid before formatting
+        timestamp_val = row.get('timestamp')
+        timestamp_str = timestamp_val.strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(timestamp_val) else 'Log Entry'
+
+        log_role = row.get('role', 'Unknown Role')
+        title_prefix = "📝" # Default prefix
+        if log_role == 'Prud_AI_symbol_suggestion':
+             title_prefix = "💡"
+        elif log_role == 'portfolio_summary':
+             title_prefix = "💼"
+
+        expander_title = f"{title_prefix} {timestamp_str} - Role: {log_role}"
+
+        with st.expander(expander_title):
+            # Display data based on the role
+            if log_role == 'Prud_AI_symbol_suggestion':
+                 st.write("**Symbol Suggestion Details:**")
+                 # Display flattened prudence_data fields if they exist
+                 sugg_date = row.get('date', 'N/A')
+                 st.write(f" - Date: {sugg_date}")
+                 sugg_symbols = row.get('symbols_to_trade')
+                 # Check if sugg_symbols is a list or array and not None/NaN
+                 # Use direct check instead of pd.notna for list/array types
+                 if sugg_symbols is not None and isinstance(sugg_symbols, (list, np.ndarray)) and len(sugg_symbols) > 0:
+                     st.write(f" - Suggested Symbols: {', '.join(map(str, sugg_symbols))}")
+                 elif sugg_symbols is not None: # Handle non-list but existing data
+                     st.write(f" - Suggested Symbols: {sugg_symbols}") # Display as is if not a list
+                 else:
+                      st.write(f" - Suggested Symbols: None")
+
+                 sugg_reason = row.get('reason')
+                 # Check if reason exists and is not None/NaN
+                 if pd.notna(sugg_reason) and sugg_reason:
+                      st.write("**Reasoning:**")
+                      st.markdown(str(sugg_reason))
+                 else:
+                     st.write("**Reasoning:** Not available")
+
+            elif log_role == 'portfolio_summary':
+                 st.write("**Portfolio Summary Details:**")
+                 # Display flattened portfolio_data fields
+                 pf_total_val = row.get('total_portfolio_value_usdt')
+                 if pd.notna(pf_total_val):
+                     # Format as currency
+                     try: st.write(f" - Total Value (USDT): ${float(pf_total_val):,.2f}")
+                     except ValueError: st.write(f" - Total Value (USDT): {pf_total_val}") # Fallback
+                 pf_usdt = row.get('usdt_balance')
+                 if pd.notna(pf_usdt):
+                     try: st.write(f" - Available USDT: ${float(pf_usdt):,.2f}")
+                     except ValueError: st.write(f" - Available USDT: {pf_usdt}")
+                 pf_num_pos = row.get('num_positions')
+                 pf_max_pos = row.get('max_positions')
+                 # Ensure both are not NaN before displaying
+                 if pd.notna(pf_num_pos) and pd.notna(pf_max_pos):
+                      try: st.write(f" - Positions: {int(pf_num_pos)} / {int(pf_max_pos)}")
+                      except ValueError: st.write(f" - Positions: {pf_num_pos} / {pf_max_pos}")
+                 pf_held = row.get('held_symbols_list')
+                 if pd.notna(pf_held):
+                      st.write(f" - Held Symbols: {pf_held if pf_held else 'None'}")
+                 # Display holdings if available
+                 holdings = {k.split('.')[-1]: v for k, v in row.items() if k.startswith('holdings_value_usdt.') and pd.notna(v)}
+                 if holdings:
+                     st.write("**Holdings Value (USDT):**")
+                     # Format holding values
+                     formatted_holdings = {symbol: f"{value:,.2f}" for symbol, value in holdings.items()}
+                     st.json(formatted_holdings, expanded=False)
+            else:
+                 # Display other roles or raw data
+                 st.write("**Log Data:**")
+                 # Create a dictionary from the row, excluding timestamp for cleaner display if desired
+                 row_dict = row.to_dict()
+                 if 'timestamp' in row_dict:
+                     del row_dict['timestamp'] # Remove timestamp as it's in the title
+                 # Check for common nested data keys and potentially flatten them
+                 display_dict = {}
+                 for key, value in row_dict.items():
+                     if isinstance(value, dict): # Flatten nested dictionaries
+                         for sub_key, sub_value in value.items():
+                             display_dict[f"{key}.{sub_key}"] = sub_value
+                     else:
+                         display_dict[key] = value
+                 # Display the cleaned dictionary
+                 st.json(display_dict, expanded=False)
 
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
