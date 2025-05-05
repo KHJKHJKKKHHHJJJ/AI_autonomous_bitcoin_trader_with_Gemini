@@ -7,7 +7,6 @@ from pandas import json_normalize # Import json_normalize
 import logging # 로깅 추가
 import plotly.graph_objects as go # Plotly 추가
 import numpy as np # Import numpy for array type checking
-
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -331,12 +330,8 @@ else:
 
 st.divider() # 시각화와 로그 사이에 구분선 추가
 
-# --- Display Tables (Moved Down) --- #
-st.subheader("🤖 Trading AI Log")
-st.caption(f"Displaying latest {MAX_LOGS_DISPLAY} entries from {BIT_LOG_FILE}") # 캡션 수정
-
 # --- Bit Trader AI 로그 표시 수정 (trade_log.jsonl) --- #
-st.subheader("🤖 Bit Trader AI Log (Execution Attempts)")
+st.subheader("🤖 Bit Trader AI Log")
 st.caption(f"Displaying data from {BIT_LOG_FILE}")
 
 # Filter controls for Bit Trader Log
@@ -369,13 +364,14 @@ elif symbol_filter == []: # If list is empty (user selected then deselected all)
 
 # Use bit_df_valid flag to decide if logs can be displayed
 if bit_df_valid and not filtered_bit_df.empty:
+    # print(filtered_bit_df)
     # Display filtered logs in expanders
     for index, row in filtered_bit_df.iterrows():
         # --- Core Information Extraction --- #
         timestamp_val = row.get('timestamp')
         timestamp_str = timestamp_val.strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(timestamp_val) else 'Log Entry'
         log_symbol = row.get('symbol', 'Unknown Symbol')
-        ai_decision_data = row.get('trade_decision') # Get the nested decision dict
+        ai_decision_data = row.get('decision') # Get the nested decision dict
         is_execution_log = pd.notna(row.get('success')) # Check if execution attempt details exist
 
         # --- Extract AI Decision Details (Always try) --- #
@@ -384,20 +380,18 @@ if bit_df_valid and not filtered_bit_df.empty:
         ai_reason = "AI decision data missing or invalid."
         ai_next_check = "N/A"
         ai_summary = "N/A"
-        if isinstance(ai_decision_data, dict):
-            ai_decision = ai_decision_data.get('decision', 'N/A')
+        if ai_decision_data != "HOLD":
+            ai_decision = row.get('decision', 'N/A')
             # Format confidence if it exists and is numeric
-            conf_val = ai_decision_data.get('confidence')
+            conf_val = row.get('confidence')
             if pd.notna(conf_val) and isinstance(conf_val, (float, int)):
                  ai_confidence = f"{conf_val:.2f}"
             elif pd.notna(conf_val):
                  ai_confidence = str(conf_val) # Display as string if not numeric
 
-            ai_reason = ai_decision_data.get('reason', 'No reason provided.')
-            ai_next_check = ai_decision_data.get('next_check_minutes', 'N/A')
-            ai_summary = ai_decision_data.get('analysis_summary', 'N/A')
-        elif pd.notna(ai_decision_data):
-            ai_reason = f"AI decision data found but not a dictionary: {ai_decision_data}"
+            ai_reason = row.get('reason', 'No reason provided.')
+            ai_next_check = row.get('next_check_minutes', 'N/A')
+            ai_summary = row.get('analysis_summary', 'N/A')
 
         # --- Determine Expander Title --- #
         title_prefix = "🤔" # Default: Thinking/Decision
@@ -551,7 +545,7 @@ if prud_df_valid and not filtered_prud_df.empty:
                       try: st.write(f" - Positions: {int(pf_num_pos)} / {int(pf_max_pos)}")
                       except ValueError: st.write(f" - Positions: {pf_num_pos} / {pf_max_pos}")
                  pf_held = row.get('held_symbols_list')
-                 if pd.notna(pf_held):
+                 if False not in pd.notna(pf_held):
                       st.write(f" - Held Symbols: {pf_held if pf_held else 'None'}")
                  # Display holdings if available
                  holdings = {k.split('.')[-1]: v for k, v in row.items() if k.startswith('holdings_value_usdt.') and pd.notna(v)}

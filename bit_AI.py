@@ -33,6 +33,7 @@ from binance.client import Client # Import Binance Client
 from binance.enums import * # Import enums for order types, sides etc.
 from binance.exceptions import BinanceAPIException # <<< Add this import
 import pytz # For timezone conversion
+from binance.helpers import round_step_size
 
 from decimal import Decimal, ROUND_DOWN
 
@@ -629,22 +630,27 @@ def execute_binance_market_sell(symbol, quantity):
         logging.warning(f"Sell quantity ({quantity}) must be positive. Skipping sell for {symbol}.")
         return None
 
-    logging.info(f"Attempting Binance market sell for {quantity:.8f} {symbol}...")
+    logging.info(f"Attempting Binance market sell for {quantity} {symbol}...")
     try:
         # 바이낸스 시장가 매도 주문 (코인 수량 기준)
         # 주의: quantity는 최소 거래 단위를 맞춰야 함 (API 에러 발생 가능)
         # 여기서는 일단 받은 quantity 그대로 사용
+        info = binance_client.get_symbol_info(symbol=symbol)
+        lot_size_filter = next(f for f in info['filters'] if f['filterType'] == 'LOT_SIZE')
+        step_size = float(lot_size_filter['stepSize'])
+        adjusted_quantity = round_step_size(quantity, step_size)
+
         order = binance_client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
             type=ORDER_TYPE_MARKET,
-            quantity=quantity
+            quantity=adjusted_quantity
         )
         logging.info(f"✅ Binance Market Sell SUCCESSFUL for {symbol}: {order}")
-        send_telegram_message(f"✅ Binance Market Sell: {quantity:.8f} {symbol}\nOrder Details: {order}")
+        send_telegram_message(f"✅ Binance Market Sell: {adjusted_quantity} {symbol}\nOrder Details: {order}")
         return order
     except Exception as e:
-        logging.error(f"❌ Binance Market Sell FAILED for {symbol} ({quantity:.8f}): {e}")
+        logging.error(f"❌ Binance Market Sell FAILED for {symbol} ({adjusted_quantity}): {e}")
         send_telegram_message(f"❌ Binance Market Sell FAILED: {quantity:.8f} {symbol}\nReason: {e}")
         return None
 
