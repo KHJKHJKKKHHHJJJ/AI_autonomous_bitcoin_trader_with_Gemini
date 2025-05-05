@@ -191,6 +191,26 @@ else: # Not empty, but no 'role' column
 
 bit_df = load_log_data(BIT_LOG_FILE) # nested_key 인자 제거
 
+# --- Clean bit_df: Ensure 'symbol' column exists and remove rows without it --- #
+bit_df_valid = False
+if not bit_df.empty:
+    if 'symbol' in bit_df.columns:
+        original_count = len(bit_df)
+        bit_df.dropna(subset=['symbol'], inplace=True)
+        dropped_count = original_count - len(bit_df)
+        if dropped_count > 0:
+            logging.warning(f"Dropped {dropped_count} rows from bit_df due to missing 'symbol'.")
+        if not bit_df.empty:
+             bit_df_valid = True
+             logging.info(f"bit_df cleaned. {len(bit_df)} rows remain with valid 'symbol'.")
+        else:
+             logging.warning("bit_df is empty after removing rows with missing 'symbol'.")
+    else:
+        logging.warning(f"'symbol' column not found in bit_df. Bit Trader AI logs cannot be displayed correctly.")
+else:
+     logging.warning("bit_df is empty after loading. No Bit Trader AI logs to display.")
+# --- End Clean bit_df --- #
+
 # --- Visualizations (Moved Up) --- #
 st.subheader("📈 Portfolio Overview")
 
@@ -320,7 +340,7 @@ st.caption(f"Displaying data from {BIT_LOG_FILE}")
 
 # Filter controls for Bit Trader Log
 symbol_filter = None
-if not bit_df.empty and 'symbol' in bit_df.columns:
+if bit_df_valid and 'symbol' in bit_df.columns:
     # Get unique symbols from the log, handle potential None/NaN
     unique_symbols = bit_df['symbol'].dropna().unique().tolist()
     if unique_symbols:
@@ -334,13 +354,20 @@ if not bit_df.empty and 'symbol' in bit_df.columns:
 # Apply filter if symbols are selected
 filtered_bit_df = bit_df
 if symbol_filter: # If list is not empty (user selected something)
-    filtered_bit_df = bit_df[bit_df['symbol'].isin(symbol_filter)]
-    st.caption(f"Showing logs for: {', '.join(symbol_filter)}")
+    # Ensure bit_df is valid before filtering
+    if bit_df_valid:
+         filtered_bit_df = bit_df[bit_df['symbol'].isin(symbol_filter)]
+         st.caption(f"Showing logs for: {', '.join(symbol_filter)}")
+    else:
+         filtered_bit_df = pd.DataFrame() # Show empty if bit_df wasn't valid
 elif symbol_filter == []: # If list is empty (user selected then deselected all)
     st.caption("Showing logs for all symbols (no filter selected).")
     # filtered_bit_df remains bit_df (show all)
+    if not bit_df_valid:
+         filtered_bit_df = pd.DataFrame()
 
-if not filtered_bit_df.empty:
+# Use bit_df_valid flag to decide if logs can be displayed
+if bit_df_valid and not filtered_bit_df.empty:
     # Display filtered logs in expanders
     for index, row in filtered_bit_df.iterrows():
         # Determine if it's an execution log or just a decision log
