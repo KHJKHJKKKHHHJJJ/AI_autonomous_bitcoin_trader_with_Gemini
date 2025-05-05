@@ -810,84 +810,84 @@ def log_trade_decision(decision_data, symbol="UNKNOWN", success=None, error_mess
         logging.error(f"Failed to log trade execution for {symbol} to {TRADE_LOG_FILE}: {e}")
 
 # --- Main Execution ---
-if __name__ == '__main__':
-    # 1. Fetch and Analyze Binance Chart Data
-    chart_df = get_binance_chart(symbol=SYMBOL, interval=Client.KLINE_INTERVAL_1HOUR, limit=DATA_LIMIT)
-    latest_indicators = None
-    signal = None
-    latest_rsi = None
-    indicator_df = None # Initialize indicator_df
-
-    if chart_df is not None:
-        indicator_df = get_technical_indicators(chart_df)
-        if indicator_df is not None:
-            print("\n--- Latest Indicator Data (Binance) ---")
-            latest_indicators = indicator_df.iloc[-1].filter(regex='^(?!geom_)')
-            print(latest_indicators)
-
-            signal = determine_signal(indicator_df)
-            print(f"\nTrade Signal based on TA: {signal}") # Clarify signal source
-
-            latest_rsi = latest_indicators.get('RSI_14', None)
-            rsi_str = f"{latest_rsi:.2f}" if latest_rsi is not None else "N/A"
-            print(f"Latest RSI: {rsi_str}")
-
-        else:
-            print("\nFailed to calculate indicators.")
-    else:
-        print("\nFailed to get chart data.")
-
-    # 2. Get Binance Balances (Requires API Key)
-    print("\n--- Binance Wallet Balances ---")
-    btc_balance, quote_balance = get_binance_balances()
-    if btc_balance is not None and quote_balance is not None:
-        print(f"Available BTC: {btc_balance}")
-        print(f"Available Quote (USDT): {quote_balance}")
-    else:
-        print("Could not retrieve Binance wallet balances (API keys might be missing or invalid).")
-
-    # 3. Get Prudence Index (Use the value obtained previously)
-    print("\n--- Prudence Index (Previously Obtained) ---")
-    # Replace with the actual call if needed: prudence_result = get_today_prudence()
-    prudence_result = {'prudence': 60, 'reason': 'Obtained from previous Prud_AI run'} # Using previous result
-    print(json.dumps(prudence_result, indent=2))
-
-    # 4. Get Gemini Trading Suggestion
-    print("\n--- Getting Gemini Trading Suggestion ---")
-    gemini_suggestion = None
-    if prudence_result and indicator_df is not None and btc_balance is not None and quote_balance is not None:
-        bit_instruction_text = get_instructions('./Bitcoin Gemini Instruction.md')
-        if bit_instruction_text:
-            bit_chat_session = gen_bit_model(bit_instruction_text)
-            if bit_chat_session:
-                # Pass balances to the suggestion function
-                gemini_suggestion = get_trade_suggestion(bit_chat_session, prudence_result, indicator_df, btc_balance, quote_balance, SYMBOL, 0, {})
-                print("\n=== Gemini Suggestion ===")
-                print(json.dumps(gemini_suggestion, indent=2, ensure_ascii=False) if gemini_suggestion else "Failed to get suggestion from Gemini.")
-            else:
-                print("Failed to initialize Gemini chat session for bit_AI.")
-        else:
-            print("Could not load Bitcoin Gemini instruction file.")
-    else:
-        print("Skipping Gemini suggestion due to missing prudence index, indicator data, or balance data.")
-
-    # 5. Log interaction (Example)
-    log_entry = {
-        "timestamp": datetime.datetime.now(KST).isoformat(),
-        "role": "bit_AI_run",
-        "signal_TA": signal, # Technical Analysis Signal
-        "latest_rsi": rsi_str if 'rsi_str' in locals() else None,
-        "prudence_index": prudence_result.get('prudence') if prudence_result else None,
-        "gemini_suggestion": gemini_suggestion, # Log Gemini's suggestion
-        "btc_balance": btc_balance,
-        "quote_balance": quote_balance,
-        "data_source": "Binance",
-        "symbol": SYMBOL,
-        "interval": CHART_INTERVAL
-    }
-    write_chat_log(log_entry)
-
-    print("\nScript execution finished.")
+# if __name__ == '__main__':
+#     # 1. Fetch and Analyze Binance Chart Data
+#     chart_df = get_binance_chart(symbol=SYMBOL, interval=Client.KLINE_INTERVAL_1HOUR, limit=DATA_LIMIT)
+#     latest_indicators = None
+#     signal = None
+#     latest_rsi = None
+#     indicator_df = None # Initialize indicator_df
+#
+#     if chart_df is not None:
+#         indicator_df = get_technical_indicators(chart_df)
+#         if indicator_df is not None:
+#             print("\n--- Latest Indicator Data (Binance) ---")
+#             latest_indicators = indicator_df.iloc[-1].filter(regex='^(?!geom_)')
+#             print(latest_indicators)
+#
+#             signal = determine_signal(indicator_df)
+#             print(f"\nTrade Signal based on TA: {signal}") # Clarify signal source
+#
+#             latest_rsi = latest_indicators.get('RSI_14', None)
+#             rsi_str = f"{latest_rsi:.2f}" if latest_rsi is not None else "N/A"
+#             print(f"Latest RSI: {rsi_str}")
+#
+#         else:
+#             print("\nFailed to calculate indicators.")
+#     else:
+#         print("\nFailed to get chart data.")
+#
+#     # 2. Get Binance Balances (Requires API Key)
+#     print("\n--- Binance Wallet Balances ---")
+#     btc_balance, quote_balance = get_binance_balances()
+#     if btc_balance is not None and quote_balance is not None:
+#         print(f"Available BTC: {btc_balance}")
+#         print(f"Available Quote (USDT): {quote_balance}")
+#     else:
+#         print("Could not retrieve Binance wallet balances (API keys might be missing or invalid).")
+#
+#     # 3. Get Prudence Index (Use the value obtained previously)
+#     print("\n--- Prudence Index (Previously Obtained) ---")
+#     # Replace with the actual call if needed: prudence_result = get_today_prudence()
+#     prudence_result = {'prudence': 60, 'reason': 'Obtained from previous Prud_AI run'} # Using previous result
+#     print(json.dumps(prudence_result, indent=2))
+#
+#     # 4. Get Gemini Trading Suggestion
+#     print("\n--- Getting Gemini Trading Suggestion ---")
+#     gemini_suggestion = None
+#     if prudence_result and indicator_df is not None and btc_balance is not None and quote_balance is not None:
+#         bit_instruction_text = get_instructions('./Bitcoin Gemini Instruction.md')
+#         if bit_instruction_text:
+#             bit_chat_session = gen_bit_model(bit_instruction_text)
+#             if bit_chat_session:
+#                 # Pass balances to the suggestion function
+#                 gemini_suggestion = get_trade_suggestion(bit_chat_session, prudence_result, indicator_df, btc_balance, quote_balance, SYMBOL, 0, {})
+#                 print("\n=== Gemini Suggestion ===")
+#                 print(json.dumps(gemini_suggestion, indent=2, ensure_ascii=False) if gemini_suggestion else "Failed to get suggestion from Gemini.")
+#             else:
+#                 print("Failed to initialize Gemini chat session for bit_AI.")
+#         else:
+#             print("Could not load Bitcoin Gemini instruction file.")
+#     else:
+#         print("Skipping Gemini suggestion due to missing prudence index, indicator data, or balance data.")
+#
+#     # 5. Log interaction (Example)
+#     log_entry = {
+#         "timestamp": datetime.datetime.now(KST).isoformat(),
+#         "role": "bit_AI_run",
+#         "signal_TA": signal, # Technical Analysis Signal
+#         "latest_rsi": rsi_str if 'rsi_str' in locals() else None,
+#         "prudence_index": prudence_result.get('prudence') if prudence_result else None,
+#         "gemini_suggestion": gemini_suggestion, # Log Gemini's suggestion
+#         "btc_balance": btc_balance,
+#         "quote_balance": quote_balance,
+#         "data_source": "Binance",
+#         "symbol": SYMBOL,
+#         "interval": CHART_INTERVAL
+#     }
+#     write_chat_log(log_entry)
+#
+#     print("\nScript execution finished.")
 
 # --- Trading AI Class --- #
 class Bit_AI:
