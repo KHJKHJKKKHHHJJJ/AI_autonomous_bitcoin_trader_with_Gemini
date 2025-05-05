@@ -340,57 +340,103 @@ elif symbol_filter == []: # If list is empty (user selected then deselected all)
 if not filtered_bit_df.empty:
     # Display filtered logs in expanders
     for index, row in filtered_bit_df.iterrows():
-        # Determine expander title based on outcome
+        # Determine if it's an execution log or just a decision log
+        is_execution_log = pd.notna(row.get('success')) # success 필드 유무로 판단
+
+        # Determine expander title
         timestamp_str = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(row.get('timestamp')) else 'Log Entry'
         log_symbol = row.get('symbol', 'Unknown Symbol')
-        decision = row.get('side_attempted', 'N/A') # Use side_attempted
-        success_status = row.get('success')
-        title_prefix = "➡️"
-        if success_status is True:
-            title_prefix = "✅"
-        elif success_status is False:
-            title_prefix = "❌"
+        expander_title = f"{timestamp_str} - {log_symbol}"
+        title_prefix = ""
+        decision_text = "N/A"
 
-        expander_title = f"{title_prefix} {timestamp_str} - {log_symbol} - Attempt: {decision}"
+        if is_execution_log:
+            # Execution Log Title
+            action = row.get('side_attempted')
+            decision_text = f"Attempt: {action}" if pd.notna(action) else "Attempt: N/A"
+            success = row.get('success')
+            if pd.notna(success):
+                title_prefix = "✅" if success else "❌"
+            else:
+                title_prefix = "➡️" # Status unknown
+            expander_title = f"{title_prefix} {timestamp_str} - {log_symbol} - {decision_text}"
+        else:
+            # Decision Log Title (Assume from 'trade_decision' field)
+            ai_decision_data = row.get('trade_decision')
+            ai_decision = "N/A"
+            if pd.notna(ai_decision_data) and isinstance(ai_decision_data, dict):
+                 ai_decision = ai_decision_data.get('decision', 'N/A')
+            title_prefix = "🤔"
+            decision_text = f"AI Decision: {ai_decision}"
+            expander_title = f"{title_prefix} {timestamp_str} - {log_symbol} - {decision_text}"
 
         with st.expander(expander_title):
-            # Display relevant log details, explicitly handling NaN/None
-            st.write(f"**Symbol:** {row.get('symbol', 'N/A')}") # Symbol is likely always present
+            st.write(f"**Symbol:** {log_symbol}")
 
-            action = row.get('side_attempted')
-            st.write(f"**Attempted Action:** {action if pd.notna(action) else 'N/A'}")
+            if is_execution_log:
+                # Display Execution Log Details
+                action = row.get('side_attempted')
+                if pd.notna(action):
+                    st.write(f"**Attempted Action:** {action}")
+                qty = row.get('quantity_attempted_or_adjusted')
+                if pd.notna(qty):
+                    st.write(f"**Attempted/Adjusted Qty:** {qty}")
+                success = row.get('success')
+                if pd.notna(success):
+                    st.write(f"**Execution Success:** {success}")
+                error_msg = row.get('error_message')
+                if pd.notna(error_msg):
+                    st.write(f"**Error:** {error_msg}")
+                order_details = row.get('order_details')
+                if pd.notna(order_details) and isinstance(order_details, dict):
+                    st.write("**Order Details:**")
+                    st.json(order_details, expanded=False)
 
-            qty = row.get('quantity_attempted_or_adjusted')
-            st.write(f"**Attempted/Adjusted Qty:** {qty if pd.notna(qty) else 'N/A'}")
+                # Show the AI decision that triggered this execution
+                ai_decision_data = row.get('trade_decision')
+                if pd.notna(ai_decision_data) and isinstance(ai_decision_data, dict):
+                    st.write("**Triggering AI Decision:**")
+                    ai_decision = ai_decision_data.get('decision')
+                    if pd.notna(ai_decision):
+                         st.write(f" - AI Decision: {ai_decision}")
+                    ai_confidence = ai_decision_data.get('confidence')
+                    if pd.notna(ai_confidence):
+                         st.write(f" - Confidence: {ai_confidence}")
+                    ai_reason = ai_decision_data.get('reason')
+                    if pd.notna(ai_reason):
+                         st.write(f" - AI Reason: {ai_reason}")
+                    ai_next_check = ai_decision_data.get('next_check_minutes')
+                    if pd.notna(ai_next_check):
+                         st.write(f" - Next Check (min): {ai_next_check}")
+                elif pd.notna(ai_decision_data):
+                     st.write(f"**Triggering AI Decision Data (raw):** {ai_decision_data}")
 
-            success = row.get('success')
-            st.write(f"**Execution Success:** {success if pd.notna(success) else 'N/A'}")
-
-            error_msg = row.get('error_message')
-            if pd.notna(error_msg):
-                st.write(f"**Error:** {error_msg}")
-
-            order_details = row.get('order_details')
-            if pd.notna(order_details) and isinstance(order_details, dict):
-                st.write("**Order Details (if successful):**")
-                st.json(order_details, expanded=False)
-
-            # Show the original AI decision data that led to this attempt
-            ai_decision_data = row.get('trade_decision')
-            if pd.notna(ai_decision_data) and isinstance(ai_decision_data, dict):
-                st.write("**Triggering AI Decision:**")
-                # Display key parts of the AI decision
-                ai_decision = ai_decision_data.get('decision')
-                st.write(f" - AI Decision: {ai_decision if pd.notna(ai_decision) else 'N/A'}")
-                ai_confidence = ai_decision_data.get('confidence')
-                st.write(f" - Confidence: {ai_confidence if pd.notna(ai_confidence) else 'N/A'}")
-                ai_reason = ai_decision_data.get('reason')
-                st.write(f" - AI Reason: {ai_reason if pd.notna(ai_reason) else 'N/A'}")
-                ai_next_check = ai_decision_data.get('next_check_minutes')
-                st.write(f" - Next Check (min): {ai_next_check if pd.notna(ai_next_check) else 'N/A'}")
-                # st.json(ai_decision_data, expanded=False) # Optionally show full JSON
-            elif pd.notna(ai_decision_data): # If it exists but is not a dict
-                 st.write(f"**Triggering AI Decision Data (raw):** {ai_decision_data}")
+            else:
+                # Display AI Decision Log Details (from 'trade_decision')
+                ai_decision_data = row.get('trade_decision')
+                if pd.notna(ai_decision_data) and isinstance(ai_decision_data, dict):
+                    ai_decision = ai_decision_data.get('decision')
+                    if pd.notna(ai_decision):
+                        st.write(f"**AI Decision:** {ai_decision}")
+                    ai_confidence = ai_decision_data.get('confidence')
+                    if pd.notna(ai_confidence):
+                        st.write(f"**Confidence:** {ai_confidence}")
+                    ai_reason = ai_decision_data.get('reason')
+                    if pd.notna(ai_reason):
+                        st.write(f"**AI Reason:** {ai_reason}")
+                    ai_next_check = ai_decision_data.get('next_check_minutes')
+                    if pd.notna(ai_next_check):
+                        st.write(f"**Next Check (min):** {ai_next_check}")
+                    ai_summary = ai_decision_data.get('analysis_summary')
+                    if pd.notna(ai_summary):
+                        st.write(f"**Analysis Summary:** {ai_summary}")
+                    # Optionally display full raw decision
+                    # with st.expander("Raw Decision Data"):
+                    #     st.json(ai_decision_data)
+                elif pd.notna(ai_decision_data):
+                    st.write(f"**AI Decision Data (raw):** {ai_decision_data}")
+                else:
+                    st.warning("Could not find AI decision data in this log entry.")
 else:
     st.info(f"No Bit Trader AI execution logs found (or none match the filter: {symbol_filter}).")
 
