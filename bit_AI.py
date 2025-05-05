@@ -176,12 +176,16 @@ def get_technical_indicators(df):
         # Use pandas_ta to calculate indicators
         # MACD
         df.ta.macd(close='Close', fast=12, slow=26, signal=9, append=True)
-        # RSI
+        # RSI (제거 예정 - 일단 계산은 유지하나 prompt에서 제외)
         df.ta.rsi(close='Close', length=14, append=True)
-        # Stochastic Oscillator (%K, %D)
-        df.ta.stoch(high='High', low='Low', close='Close', k=14, d=3, append=True)
+        # Stochastic Oscillator (%K, %D) (제거)
+        # df.ta.stoch(high='High', low='Low', close='Close', k=14, d=3, append=True)
+        # Stochastic RSI 추가
+        df.ta.stochrsi(close='Close', length=14, rsi_length=14, k=3, d=3, append=True)
         # EMA 200
         df.ta.ema(close='Close', length=200, append=True)
+        # Heikin Ashi 추가
+        df.ta.ha(append=True)
 
         # Rename EMA column if needed (pandas_ta might name it EMA_200)
         if 'EMA_200' in df.columns:
@@ -189,6 +193,20 @@ def get_technical_indicators(df):
         # Check if the column exists after potential rename or direct calculation
         if 'ema200' not in df.columns:
              logging.warning("EMA 200 column ('ema200') not found after calculation.")
+
+        # Heikin Ashi 컬럼 이름 확인 및 로깅 (HA_open, HA_high, HA_low, HA_close)
+        ha_cols = [col for col in df.columns if col.startswith('HA_')]
+        if not ha_cols:
+            logging.warning("Heikin Ashi columns not found after calculation.")
+        else:
+            logging.info(f"Heikin Ashi columns added: {ha_cols}")
+
+        # Stoch RSI 컬럼 이름 확인 및 로깅 (STOCHRSIk_14_14_3_3, STOCHRSId_14_14_3_3)
+        stochrsi_cols = [col for col in df.columns if col.startswith('STOCHRSI')]
+        if not stochrsi_cols:
+             logging.warning("Stochastic RSI columns not found after calculation.")
+        else:
+            logging.info(f"Stochastic RSI columns added: {stochrsi_cols}")
 
         # Handle potential NaN values - Strategy: Forward fill then backward fill
         # df.fillna(method='ffill', inplace=True)
@@ -373,9 +391,15 @@ def get_trade_suggestion(chat_session, prudence_context, indicator_df, base_bala
 
         # Format indicators safely
         close_str = f"{latest_indicators.get('Close', 'N/A'):.2f}" if pd.notna(latest_indicators.get('Close')) else "N/A"
-        rsi_str = f"{latest_indicators.get('RSI_14', 'N/A'):.2f}" if pd.notna(latest_indicators.get('RSI_14')) else "N/A"
-        stochk_str = f"{latest_indicators.get('STOCHk_14_3_3', 'N/A'):.2f}" if pd.notna(latest_indicators.get('STOCHk_14_3_3')) else "N/A"
-        stochd_str = f"{latest_indicators.get('STOCHd_14_3_3', 'N/A'):.2f}" if pd.notna(latest_indicators.get('STOCHd_14_3_3')) else "N/A"
+        # rsi_str = f"{latest_indicators.get('RSI_14', 'N/A'):.2f}" if pd.notna(latest_indicators.get('RSI_14')) else "N/A" # RSI 제외
+        # stochk_str = f"{latest_indicators.get('STOCHk_14_3_3', 'N/A'):.2f}" if pd.notna(latest_indicators.get('STOCHk_14_3_3')) else "N/A" # Stoch 제외
+        # stochd_str = f"{latest_indicators.get('STOCHd_14_3_3', 'N/A'):.2f}" if pd.notna(latest_indicators.get('STOCHd_14_3_3')) else "N/A" # Stoch 제외
+        stochrsi_k_str = f"{latest_indicators.get('STOCHRSIk_14_14_3_3', 'N/A'):.2f}" if pd.notna(latest_indicators.get('STOCHRSIk_14_14_3_3')) else "N/A"
+        stochrsi_d_str = f"{latest_indicators.get('STOCHRSId_14_14_3_3', 'N/A'):.2f}" if pd.notna(latest_indicators.get('STOCHRSId_14_14_3_3')) else "N/A"
+        ha_open_str = f"{latest_indicators.get('HA_open', 'N/A'):.2f}" if pd.notna(latest_indicators.get('HA_open')) else "N/A"
+        ha_high_str = f"{latest_indicators.get('HA_high', 'N/A'):.2f}" if pd.notna(latest_indicators.get('HA_high')) else "N/A"
+        ha_low_str = f"{latest_indicators.get('HA_low', 'N/A'):.2f}" if pd.notna(latest_indicators.get('HA_low')) else "N/A"
+        ha_close_str = f"{latest_indicators.get('HA_close', 'N/A'):.2f}" if pd.notna(latest_indicators.get('HA_close')) else "N/A"
         macd_str = f"{latest_indicators.get('MACD_12_26_9', 'N/A'):.4f}" if pd.notna(latest_indicators.get('MACD_12_26_9')) else "N/A"
         macds_str = f"{latest_indicators.get('MACDs_12_26_9', 'N/A'):.4f}" if pd.notna(latest_indicators.get('MACDs_12_26_9')) else "N/A"
         ema200_str = f"{latest_indicators.get('ema200', 'N/A'):.2f}" if pd.notna(latest_indicators.get('ema200')) else "N/A"
@@ -401,13 +425,16 @@ def get_trade_suggestion(chat_session, prudence_context, indicator_df, base_bala
         *   **Time Since Last Check:** {elapsed_minutes:.0f} minutes
         *   **Prudence Context (Why this symbol group was chosen):** {prudence_reasoning}
         *   **Latest Technical Indicators ({symbol}, 1h):**
-            *   Close: {close_str}
-            *   RSI(14): {rsi_str}
-            *   StochK(14,3,3): {stochk_str}
-            *   StochD(14,3,3): {stochd_str}
+            *   Close (Regular Candle): {close_str}
+            *   EMA(200): {ema200_str}
+            *   StochRSI K(14,14,3,3): {stochrsi_k_str}
+            *   StochRSI D(14,14,3,3): {stochrsi_d_str}
+            *   Heikin Ashi Open: {ha_open_str}
+            *   Heikin Ashi High: {ha_high_str}
+            *   Heikin Ashi Low: {ha_low_str}
+            *   Heikin Ashi Close: {ha_close_str}
             *   MACD(12,26,9): {macd_str}
             *   MACD Signal(9): {macds_str}
-            *   EMA(200): {ema200_str}
         *   **Current Wallet Status (Binance, specific to {symbol}):**
             *   Available {base_asset}: {base_bal_str}
             *   Available USDT (for this specific pair - may differ from total): {quote_bal_str}

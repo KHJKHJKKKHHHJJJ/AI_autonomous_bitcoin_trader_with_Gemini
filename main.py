@@ -283,17 +283,40 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
         except Exception as e:
             logging.error(f"Failed to send Held Symbols Telegram message: {e}")
 
-        # --- 추천 목록과 보유 목록 합치기 (중복 제거) --- #
-        symbols_to_process_today = list(set(recommended_symbols) | set(held_symbols))
-        logging.info(f"Final list of symbols to process today: {symbols_to_process_today}")
+        # --- 최종 처리 심볼 결정 (USDT 잔고 확인) --- #
+        _, current_usdt_balance = get_binance_balances(quote_asset='USDT') # Get current USDT balance
+        if current_usdt_balance is None:
+            current_usdt_balance = 0.0 # 오류 시 0으로 간주
+            logging.warning("Could not retrieve USDT balance. Assuming 0 for symbol processing decision.")
+
+        symbols_to_process_today = []
+        if current_usdt_balance < MIN_BUY_AMOUNT_USDT:
+            logging.warning(f"Available USDT ({current_usdt_balance:.2f}) is below minimum buy amount ({MIN_BUY_AMOUNT_USDT}). Processing HELD symbols ONLY.")
+            # USDT 부족 시 보유 종목만 처리 목록에 포함
+            symbols_to_process_today = held_symbols
+            # 텔레그램 알림 추가 (선택적)
+            try:
+                send_telegram_message(f"⚠️ Low USDT ({current_usdt_balance:.2f} < {MIN_BUY_AMOUNT_USDT}). Processing held symbols only: {held_symbols if held_symbols else 'None'}")
+            except Exception as e:
+                logging.error(f"Failed to send low USDT notification: {e}")
+        else:
+            logging.info(f"Sufficient USDT ({current_usdt_balance:.2f}) available. Processing recommended and held symbols.")
+            # USDT 충분 시 추천 목록과 보유 목록 합치기 (중복 제거)
+            symbols_to_process_today = list(set(recommended_symbols) | set(held_symbols))
+
+        # logging.info(f"Final list of symbols to process today: {symbols_to_process_today}") # 이 로그는 아래로 이동 또는 삭제
         # --- 텔레그램 알림: 최종 처리 목록 --- #
         try:
-             send_telegram_message(f"📋 Symbols to Process: {symbols_to_process_today if symbols_to_process_today else 'None'}")
+             log_msg = f"📋 Symbols to Process: {symbols_to_process_today if symbols_to_process_today else 'None'}"
+             if current_usdt_balance < MIN_BUY_AMOUNT_USDT:
+                 log_msg += " (Held Only due to low USDT)"
+             send_telegram_message(log_msg)
+             logging.info(log_msg) # 로그도 여기서 남김
         except Exception as e:
             logging.error(f"Failed to send Symbols to Process Telegram message: {e}")
 
         if not symbols_to_process_today: # 처리할 최종 심볼 목록이 없으면 대기
-            logging.warning("No symbols recommended or held. Waiting for 1 hour.")
+            logging.warning("No symbols recommended or held to process. Waiting for 1 hour.")
             timeout = 60 * 60 # 심볼 없으면 1시간 후 재시도
             ticker = 0
             continue # 다음 루프 실행
@@ -351,40 +374,6 @@ while u_input not in ['Y', 'y', 'Yes', 'yes', 'YES']:
                 if base_balance is None or quote_balance is None:
                      logging.warning(f"Could not retrieve Binance balances for {symbol_to_process}. Skipping...")
                      continue # 잔고 조회 실패 시 해당 심볼 건너뛰기
-
-                # <<< 최소 판매 수량 확인 로직 추가 >>>
-                # 매도 고려 시 (보유량이 0보다 클 때) 최소 주문 수량 확인
-                proceed_with_analysis = True # 기본값은 분석 진행
-                if base_balance > 0:
-                    logging.info(f"Checking minQty for selling {base_asset} (Balance: {base_balance})")
-                    min_sell_qty = bit_AI.get_min_order_quantity(symbol_to_process)
-                    if min_sell_qty is not None:
-                        try:
-                            held_qty_decimal = Decimal(str(base_balance))
-                            if held_qty_decimal < min_sell_qty:
-                                logging.warning(f"Held quantity {held_qty_decimal:.8f} {base_asset} is less than minQty {min_sell_qty:.8f}. Skipping analysis for potential SELL.")
-                                # 중요: 분석 자체를 건너뛸지, 아니면 매도 결정만 막을지 결정 필요.
-                                # 여기서는 분석은 진행하되, 나중에 매도 결정 시 참고하도록 할 수 있음.
-                                # 또는, 아예 분석을 건너뛰도록 플래그 설정.
-                                # 현재: 분석 건너뛰기 선택
-                                proceed_with_analysis = False
-                                # 다음 심볼 처리 전 로그를 남기기 위해 continue 대신 아래 if문 사용
-                            else:
-                                logging.info(f"Held quantity {held_qty_decimal:.8f} >= minQty {min_sell_qty:.8f}. Analysis can proceed for potential SELL.")
-                        except Exception as e_dec:
-                            logging.error(f"Error comparing quantity with minQty for {symbol_to_process}: {e_dec}")
-                            proceed_with_analysis = False # 비교 오류 시 분석 건너뛰기
-                    else:
-                        logging.warning(f"Could not determine minQty for {symbol_to_process}. Proceeding with analysis cautiously.")
-                        # minQty 모를 경우 일단 분석 진행 (거래 실행 시 재확인 필요)
-
-                if not proceed_with_analysis:
-                    # 로그만 남기고 다음 심볼로 넘어감 (timeout 계산에는 영향 없음)
-                    logging.info(f"Skipping LLM analysis for {symbol_to_process} due to quantity check.")
-                    # 다음 반복을 위해 마지막 확인 시간은 업데이트 할 수 있음 (선택적)
-                    # last_check_times[symbol_to_process] = current_time
-                    continue # 다음 심볼로 이동
-                # <<< 최소 판매 수량 확인 로직 끝 >>>
 
                 # 3. Trading AI 호출 (portfolio_summary 전달)
                 logging.info(f"Calling Trading AI for {symbol_to_process}...")

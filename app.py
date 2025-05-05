@@ -311,54 +311,74 @@ st.divider() # 시각화와 로그 사이에 구분선 추가
 st.subheader("🤖 Trading AI Log")
 st.caption(f"Displaying latest {MAX_LOGS_DISPLAY} entries from {BIT_LOG_FILE}") # 캡션 수정
 
-if not bit_df.empty:
-    # Display latest logs (use head because data is already sorted descending)
-    for index, row in bit_df.head(MAX_LOGS_DISPLAY).iterrows(): # head() 사용
-        # Use 'assistant' role for all AI decisions
-        with st.chat_message("assistant"):
-            # Extract symbol (should be top-level) and decision data (now flattened)
-            symbol = row.get('symbol', 'UNKNOWN') # Get symbol from top level
+# --- Bit Trader AI 로그 표시 수정 (trade_log.jsonl) --- #
+st.subheader("🤖 Bit Trader AI Log (Execution Attempts)")
+st.caption(f"Displaying data from {BIT_LOG_FILE}")
 
-            # Access flattened decision data directly from the row
-            timestamp_str = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(row.get('timestamp')) else "N/A" # Use get for safety
-            decision_val = row.get('decision', 'N/A') # Get directly from flattened row
-            confidence_val = row.get('confidence', 'N/A') # Get directly from flattened row
-            confidence_str = f"{confidence_val:.2f}" if pd.notna(confidence_val) else "N/A" # Format confidence
+# Filter controls for Bit Trader Log
+symbol_filter = None
+if not bit_df.empty and 'symbol' in bit_df.columns:
+    # Get unique symbols from the log, handle potential None/NaN
+    unique_symbols = bit_df['symbol'].dropna().unique().tolist()
+    if unique_symbols:
+        symbol_filter = st.multiselect(
+            'Filter by Symbol(s):',
+            options=sorted(unique_symbols),
+            default=None, # Initially show all
+            key='bit_log_symbol_filter' # Unique key for the widget
+        )
 
-            # Include symbol in the decision string
-            decision_str = f"**Symbol:** {symbol} | **Decision:** {decision_val} (Confidence: {confidence_str})"
+# Apply filter if symbols are selected
+filtered_bit_df = bit_df
+if symbol_filter: # If list is not empty (user selected something)
+    filtered_bit_df = bit_df[bit_df['symbol'].isin(symbol_filter)]
+    st.caption(f"Showing logs for: {', '.join(symbol_filter)}")
+elif symbol_filter == []: # If list is empty (user selected then deselected all)
+    st.caption("Showing logs for all symbols (no filter selected).")
+    # filtered_bit_df remains bit_df (show all)
 
-            st.caption(f"*{timestamp_str}*")
-            st.write(decision_str) # Display symbol, decision, and confidence
+if not filtered_bit_df.empty:
+    # Display filtered logs in expanders
+    for index, row in filtered_bit_df.iterrows():
+        # Determine expander title based on outcome
+        timestamp_str = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(row.get('timestamp')) else 'Log Entry'
+        log_symbol = row.get('symbol', 'Unknown Symbol')
+        decision = row.get('side_attempted', 'N/A') # Use side_attempted
+        success_status = row.get('success')
+        title_prefix = "➡️"
+        if success_status is True:
+            title_prefix = "✅"
+        elif success_status is False:
+            title_prefix = "❌"
 
-            # Display the main reason using markdown (handles tables)
-            reason_text = row.get('reason', '*No reason provided*') # Get directly from flattened row
-            if reason_text:
-                # Ensure reason_text is a string before passing to markdown
-                st.markdown(str(reason_text)) # Render the reason field as markdown
+        expander_title = f"{title_prefix} {timestamp_str} - {log_symbol} - Attempt: {decision}"
 
-            st.divider() # Add a separator between messages
+        with st.expander(expander_title):
+            # Display relevant log details
+            st.write(f"**Symbol:** {log_symbol}")
+            st.write(f"**Attempted Action:** {decision}")
+            st.write(f"**Attempted/Adjusted Qty:** {row.get('quantity_attempted_or_adjusted', 'N/A')}")
+            st.write(f"**Execution Success:** {success_status}")
+            if row.get('error_message'):
+                st.write(f"**Error:** {row.get('error_message')}")
+            if row.get('order_details') and isinstance(row.get('order_details'), dict):
+                st.write("**Order Details (if successful):**")
+                st.json(row.get('order_details'), expanded=False)
 
-    # --- Older logs in expander --- # (선택적: 모든 로그를 보고 싶을 경우)
-    if len(bit_df) > MAX_LOGS_DISPLAY:
-        with st.expander("View Older Trading AI Logs..."):
-            for index, row in bit_df.iloc[MAX_LOGS_DISPLAY:].iterrows():
-                 with st.chat_message("assistant"):
-                    symbol = row.get('symbol', 'UNKNOWN')
-                    timestamp_str = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S KST') if pd.notna(row.get('timestamp')) else "N/A"
-                    decision_val = row.get('decision', 'N/A')
-                    confidence_val = row.get('confidence', 'N/A')
-                    confidence_str = f"{confidence_val:.2f}" if pd.notna(confidence_val) else "N/A"
-                    decision_str = f"**Symbol:** {symbol} | **Decision:** {decision_val} (Confidence: {confidence_str})"
-                    st.caption(f"*{timestamp_str}*")
-                    st.write(decision_str)
-                    reason_text = row.get('reason', '*No reason provided*')
-                    if reason_text:
-                        st.markdown(str(reason_text))
-                    st.divider()
-
+            # Show the original AI decision data that led to this attempt
+            ai_decision_data = row.get('trade_decision')
+            if ai_decision_data and isinstance(ai_decision_data, dict):
+                st.write("**Triggering AI Decision:**")
+                # Display key parts of the AI decision
+                st.write(f" - AI Decision: {ai_decision_data.get('decision')}")
+                st.write(f" - Confidence: {ai_decision_data.get('confidence')}")
+                st.write(f" - AI Reason: {ai_decision_data.get('reason')}")
+                st.write(f" - Next Check (min): {ai_decision_data.get('next_check_minutes')}")
+                # st.json(ai_decision_data, expanded=False) # Optionally show full JSON
 else:
-    st.warning(f"No Trading AI log data found or failed to load from {BIT_LOG_FILE}.")
+    st.info(f"No Bit Trader AI execution logs found (or none match the filter: {symbol_filter}).")
+
+st.divider()
 
 # --- Prudence AI 로그 표시 수정 --- #
 st.subheader("🤔 Prudence AI Log")
