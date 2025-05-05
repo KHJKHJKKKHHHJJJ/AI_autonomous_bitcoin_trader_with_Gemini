@@ -229,14 +229,16 @@ if prud_df_valid:
             prefix = 'holdings_value_usdt.'
             for col_name in latest_portfolio_row.index:
                 if col_name.startswith(prefix):
-                    # Ensure the value is numeric before adding
-                    value = pd.to_numeric(latest_portfolio_row[col_name], errors='coerce')
+                    raw_value = latest_portfolio_row[col_name]
+                    # Ensure the value is numeric before adding, handle empty string
+                    value = pd.to_numeric(raw_value, errors='coerce') if raw_value != '' else pd.NA
                     if pd.notna(value) and value > 0:
                          symbol = col_name[len(prefix):] # Extract symbol (e.g., ADA)
                          holdings[symbol] = value
 
-            usdt_balance_chart = pd.to_numeric(latest_portfolio_row.get('usdt_balance', 0.0), errors='coerce')
-            # Ensure usdt_balance_chart is not NaN before comparison
+            raw_usdt_balance = latest_portfolio_row.get('usdt_balance', 0.0)
+            usdt_balance_chart = pd.to_numeric(raw_usdt_balance, errors='coerce') if raw_usdt_balance != '' else pd.NA
+            # Ensure usdt_balance_chart is not NaN or NA before comparison
             if pd.isna(usdt_balance_chart):
                  usdt_balance_chart = 0.0
             plot_data = holdings.copy()
@@ -277,8 +279,9 @@ if prud_df_valid:
      if not portfolio_logs_for_trend.empty:
          plot_data_trend = [] # Use different variable name
          for index, row in portfolio_logs_for_trend.iterrows():
-             # Access flattened value directly and ensure it's numeric
-             value = pd.to_numeric(row.get('total_portfolio_value_usdt'), errors='coerce')
+             # Access flattened value directly, ensure it's numeric, handle empty string
+             raw_value = row.get('total_portfolio_value_usdt')
+             value = pd.to_numeric(raw_value, errors='coerce') if raw_value != '' else pd.NA
              timestamp = row.get('timestamp') # Get timestamp
              # Ensure both value and timestamp are valid
              if pd.notna(value) and pd.notna(timestamp):
